@@ -2,7 +2,16 @@
 // Connects to local ws server (same origin) and replaces bots with real players.
 
 (function(){
-  const WS_URL = (location.protocol==='https:'?'wss':'ws') + '://' + location.host;
+  const qp = new URLSearchParams(location.search);
+  const wsOverride = qp.get('ws');
+  const wsGlobal = (typeof window !== 'undefined' && window.MP_WS_URL) ? String(window.MP_WS_URL) : '';
+  // Default: same-origin (works for local + when hosting static+ws together).
+  // For GitHub Pages (static), pass ?ws=wss://<your-render-host> or set window.MP_WS_URL in HTML.
+  const WS_URL = (wsOverride && wsOverride.trim())
+    ? wsOverride.trim()
+    : (wsGlobal && wsGlobal.trim())
+      ? wsGlobal.trim()
+      : ((location.protocol==='https:'?'wss':'ws') + '://' + location.host);
 
   const $ = (s, r=document) => r.querySelector(s);
 

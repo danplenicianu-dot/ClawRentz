@@ -249,6 +249,6 @@ wss.on('connection', (ws) => {
   ws.send(JSON.stringify({ type:'hello', id: clientId }));
 });
 
-server.listen(PORT, () => {
-  console.log(`Rentz MP server running: http://localhost:${PORT}`);
+server.listen(PORT, '0.0.0.0', () => {
+  console.log(`Rentz MP server running on :${PORT}`);
 });

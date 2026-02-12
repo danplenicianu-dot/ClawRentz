@@ -139,24 +139,28 @@
 
   function applyRoomPublic(r){
     room = r;
+
     // update seat names in UI
     for(const p of (r.players||[])){
-      const sel = seatToName(p.seat);
+      // r.players[*].seat is REAL seat index (server).
+      // Map it to LOCAL seat index so each client sees themselves as bottom.
+      const localSeat = (you && Number.isFinite(you.realSeat)) ? toLocalSeat(p.seat) : p.seat;
+
+      const sel = seatToName(localSeat);
       const el = sel ? document.querySelector(sel) : null;
       if(el) el.textContent = p.name;
-    }
-    // In multiplayer we keep the local (bottom) player name consistent with legacy name-sync script (A13)
-    // by writing it after join (see joined/init_state). Do not force host name here.
 
-    // also sync into game state ASAP (to override random footballer names)
-    try{
-      if(window.__state && window.__state.players){
-        for(const p of (r.players||[])){
-          if(window.__state.players[p.seat]) window.__state.players[p.seat].name = p.name;
+      // also sync into game state ASAP (prevents footballer-name randomizer from reintroducing bots)
+      try{
+        if(window.__state && window.__state.players && window.__state.players[localSeat]){
+          window.__state.players[localSeat].name = p.name;
         }
-        if(typeof window.renderHands==='function') window.renderHands();
-        if(typeof window.updateLeftScorePanel==='function') window.updateLeftScorePanel();
-      }
+      }catch(e){}
+    }
+
+    try{
+      if(typeof window.renderHands==='function') window.renderHands();
+      if(typeof window.updateLeftScorePanel==='function') window.updateLeftScorePanel();
     }catch(e){}
 
     const b = ensureBadge();
@@ -284,10 +288,10 @@
   function setYourHumanSeat(){
     if(!window.__state || !you) return;
     const st = window.__state;
-    st.players.forEach((p, idx) => {
-      // local indexing: seat 0 is always the human player
-      p.isHuman = (idx === 0);
-    });
+    // In MP, ALL 4 seats are human players. Mark all as human to prevent bot name randomizers.
+    st.players.forEach((p) => { p.isHuman = true; });
+    // also lock bot name assignment scripts (some legacy code checks this flag)
+    st.__botNamesLocked = true;
   }
 
   function installStartButton(){
@@ -306,7 +310,7 @@
     const btn = document.getElementById('mpStartBtn');
     if(!btn || !room || !you) return;
     const ready = (room.players||[]).length === 4;
-    btn.style.display = (you.seat===0 && ready && !room.started) ? 'block' : 'none';
+    btn.style.display = (you.realSeat===0 && ready && !room.started) ? 'block' : 'none';
   }
 
   function initRoundFromServer(payload){
@@ -427,7 +431,7 @@
       // keep both real seat (server) and local seat (always 0)
       you = { ...msg.you, realSeat: msg.you.seat, seat: 0 };
       // Ensure legacy name-sync script doesn't overwrite local seat name
-      try{ if(you.name) localStorage.setItem('rentz.playerName', you.name); }catch(e){}
+      // (localStorage is patched in enableMultiplayer; do not write shared localStorage here)
 
       applyRoomPublic(msg.room);
       enableMultiplayer();

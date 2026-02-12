@@ -102,7 +102,11 @@ function trickWinner(trick){
 }
 
 // --- rooms ---
-function code(){ return Math.random().toString(36).slice(2,7).toUpperCase(); }
+// Room code: digits only (easy to dictate, no O/0 ambiguity)
+function code(){
+  // 6 digits
+  return String(Math.floor(100000 + Math.random()*900000));
+}
 
 const rooms = new Map();
 // room = { code, createdAt, players:[{id,name,ws,seat}], started, seed, hands, chooserIndex }

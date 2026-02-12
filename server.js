@@ -177,12 +177,29 @@ wss.on('connection', (ws) => {
       console.log('[join]', clientId, 'code=', c, 'name=', name);
       const r = rooms.get(c);
       if(!r) return ws.send(JSON.stringify({type:'error', message:'Camera nu există.'}));
-      if(r.players.length >= 4) return ws.send(JSON.stringify({type:'error', message:'Camera e plină.'}));
+      // Room capacity is 4 CONNECTED players. Allow re-joining into disconnected slots.
+      const connected = r.players.filter(p=>p.ws && p.ws.readyState===1);
+      if(connected.length >= 4){
+        return ws.send(JSON.stringify({type:'error', message:'Camera e plină.'}));
+      }
       room = r;
-      const used = new Set(r.players.map(p=>p.seat));
-      let seat=0; while(used.has(seat)) seat++;
-      player = { id: clientId, name, ws, seat };
-      r.players.push(player);
+
+      // Prefer reclaiming a disconnected seat with the same name (best-effort)
+      const disconnected = r.players.filter(p=>!(p.ws && p.ws.readyState===1));
+      let reuse = disconnected.find(p=>p.name===name) || disconnected[0] || null;
+
+      if(reuse){
+        reuse.id = clientId;
+        reuse.name = name;
+        reuse.ws = ws;
+        player = reuse;
+      } else {
+        const used = new Set(r.players.map(p=>p.seat));
+        let seat=0; while(used.has(seat)) seat++;
+        player = { id: clientId, name, ws, seat };
+        r.players.push(player);
+      }
+
       sendTo(player, { type:'joined', you:{id:player.id, seat:player.seat, name:player.name}, room: roomPublic(r) });
       broadcast(r, { type:'room_update', room: roomPublic(r) });
       return;
@@ -192,7 +209,8 @@ wss.on('connection', (ws) => {
 
     if(msg.type === 'start'){
       if(player.seat !== 0) return; // host only
-      if(room.players.length !== 4) return sendTo(player, {type:'error', message:'Trebuie 4 jucători în cameră.'});
+      const connectedNow = room.players.filter(p=>p.ws && p.ws.readyState===1);
+      if(connectedNow.length !== 4) return sendTo(player, {type:'error', message:'Trebuie 4 jucători conectați în cameră.'});
       if(room.started) return;
       room.started = true;
       room.seed = (Date.now() ^ Math.floor(Math.random()*1e9)) >>> 0;

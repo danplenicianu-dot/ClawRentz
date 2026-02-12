@@ -624,7 +624,7 @@ window.updateLeftScorePanel = updateLeftScorePanel;
           ul.innerHTML='';
           for(let i=0;i<4;i++){
             const li=document.createElement('li');
-            li.textContent = (__state.players[i]?.name || ('Juc '+(i+1))) + ' — ' + __state.totalScores[i];
+            li.textContent = (__state.players[i]?.name || ('Juc '+(i+1))) + ' ' + __state.totalScores[i];
             ul.appendChild(li);
           }
         }
@@ -725,7 +725,7 @@ window.updateLeftScorePanel = updateLeftScorePanel;
         rows.forEach(function(r, idx){
           var li = document.createElement('li');
           var prefix = (idx===0 ? '👑 ' : (idx===1 ? '🥈 ' : (idx===2 ? '🥉 ' : '🐔 ')));
-          li.textContent = prefix + r.name + ' — ' + r.total;
+          li.textContent = prefix + r.name + ' ' + r.total;
           ul.appendChild(li);
         });
       };
@@ -814,7 +814,7 @@ window.updateLeftScorePanel = updateLeftScorePanel;
         rows.forEach(function(r, idx){
           var li = document.createElement('li');
           var prefix = (idx===0 ? '👑 ' : (idx===1 ? '🥈 ' : (idx===2 ? '🥉 ' : '🐔 ')));
-          li.textContent = prefix + r.name + ' — ' + r.total;
+          li.textContent = prefix + r.name + ' ' + r.total;
           ul.appendChild(li);
         });
       };

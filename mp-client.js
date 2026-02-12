@@ -173,7 +173,8 @@
             const fallback = (i===0 && you?.name) ? you.name : ('P' + (i+1));
             window.__state.players[i].name = fallback;
           }
-          window.__state.players[i].isHuman = true;
+          // only local seat should be human (face-up)
+          window.__state.players[i].isHuman = (i===0);
         }
         window.__state.__botNamesLocked = true;
       }
@@ -229,8 +230,9 @@
       const st = window.__state;
       if(st){
         st.__botNamesLocked = true;
+        // keep seat 0 human for rendering; others non-human (backs)
         if(Array.isArray(st.players)){
-          st.players.forEach(p=>{ if(p) p.isHuman = true; });
+          st.players.forEach((p,idx)=>{ if(p) p.isHuman = (idx===0); });
         }
       }
     }catch(e){}
@@ -315,9 +317,10 @@
   function setYourHumanSeat(){
     if(!window.__state || !you) return;
     const st = window.__state;
-    // In MP, ALL 4 seats are human players. Mark all as human to prevent bot name randomizers.
-    st.players.forEach((p) => { p.isHuman = true; });
-    // also lock bot name assignment scripts (some legacy code checks this flag)
+    // IMPORTANT: only local seat (bottom) should be rendered as human (face-up cards).
+    // Other seats must stay non-human so their hands render as card backs.
+    st.players.forEach((p, idx) => { p.isHuman = (idx === 0); });
+    // lock bot name assignment scripts so we keep real MP names (no footballers)
     st.__botNamesLocked = true;
   }
 

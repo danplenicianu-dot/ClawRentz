@@ -1,0 +1,100 @@
+/* Mobile (landscape-first) overrides for Rentz MP
+   Loaded only by index-mobile.html
+*/
+
+/* Improve touch and prevent accidental scroll bounce */
+html, body { height: 100%; overscroll-behavior: none; }
+body { -webkit-text-size-adjust: 100%; }
+
+/* Landscape phones: prioritize table space */
+@media (orientation: landscape) {
+  /* iPhone 16 Pro Max / iPhone Air-like: slightly larger cards */
+  @media (min-width: 820px) {
+    #handBottom .card{ width: 64px; height: 92px; }
+    #handBottom{ --handOverlap: 20px; }
+  }
+  /* smaller landscape phones: smaller cards + more overlap */
+  @media (max-width: 740px) {
+    #handBottom .card{ width: 52px; height: 76px; }
+    #handBottom{ --handOverlap: 30px; }
+  }
+
+  /* Reduce side panels */
+  .score-panel { 
+    position: fixed;
+    top: 8px;
+    left: 8px;
+    z-index: 50;
+    max-width: 42vw;
+    padding: 8px 10px;
+    opacity: 0.92;
+  }
+  .score-title { font-size: 12px; margin-bottom: 6px; }
+  #scoreList li { font-size: 12px; line-height: 1.2; }
+
+  /* Table should fit */
+  .table-wrap { padding: 6px; }
+  .table-oval { 
+    width: min(98vw, 980px);
+    height: min(92vh, 520px);
+  }
+
+  /* Hand container (bottom) */
+  #handBottom {
+    max-width: 96vw;
+    overflow: hidden;
+    padding-bottom: 6px;
+    touch-action: manipulation;
+  }
+
+  /* Other hands slightly smaller stacks */
+  .hand .card.back { transform: scale(0.9); transform-origin: 50% 50%; }
+
+  /* Selector: full-screen bottom sheet style */
+  #selector { align-items: flex-end !important; }
+  #selector .box { width: 100% !important; max-width: none !important; border-radius: 16px 16px 0 0 !important; }
+  #selector .games { display: grid !important; grid-template-columns: 1fr 1fr !important; gap: 10px !important; }
+  #selector .game-btn { padding: 14px 10px !important; font-size: 14px !important; }
+
+  /* Chat: ALWAYS minimized on mobile */
+  #chatPanel { right: 8px; bottom: 8px; width: auto; height: auto; }
+  #chatPanel .chat-messages,
+  #chatPanel .chat-input{ display:none !important; }
+  #chatToggle{ display:none !important; }
+  #chatPanel .chat-header { padding: 8px 10px; }
+
+  /* Selector: keep it compact so the hand is still visible for choosing */
+  #selector{ align-items: flex-start !important; padding-top: 10px !important; }
+  #selector .box{ max-height: 58vh !important; overflow: auto !important; }
+
+  /* Bottom hand fan: handled by flex + right-overlap; no per-card z-index needed */
+
+  /* Keep card typography EXACTLY like desktop. */
+  /* (No overrides for .rank/.suit/.rank.rev on mobile) */
+
+  /* Bottom hand fan: overlap to the RIGHT + ensure later cards sit on top so every top-left corner stays readable */
+  #handBottom{ display:flex; justify-content:center; gap:0; }
+  /* IMPORTANT: Avoid CSS transform scaling on cards (it can blur text on iOS).
+     Use explicit sizing instead for crisp text. */
+  .card{ -webkit-font-smoothing: antialiased; text-rendering: geometricPrecision; }
+
+  /* Card size tuned for iPhone landscape: keep desktop-style layout but crisp */
+  #handBottom .card{ position:relative; transform: none !important; width: 58px; height: 84px; }
+  /* overlap is computed dynamically in mobile.js to ensure all cards fit */
+  #handBottom .card + .card{ margin-left: 0; margin-right: calc(-1 * var(--handOverlap, 26px)); }
+
+  /* NOTE: don't force transform on center/trick cards; the game uses transforms for animations */
+  #handBottom .card:nth-child(1){z-index:1}
+  #handBottom .card:nth-child(2){z-index:2}
+  #handBottom .card:nth-child(3){z-index:3}
+  #handBottom .card:nth-child(4){z-index:4}
+  #handBottom .card:nth-child(5){z-index:5}
+  #handBottom .card:nth-child(6){z-index:6}
+  #handBottom .card:nth-child(7){z-index:7}
+  #handBottom .card:nth-child(8){z-index:8}
+
+  /* If the base CSS dims disabled cards, keep text readable on mobile hand */
+  #handBottom .card.disabled{ opacity: 1 !important; filter: none !important; }
+  #handBottom .card.disabled .rank,
+  #handBottom .card.disabled .suit{ opacity: 1 !important; }
+}

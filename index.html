@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="ro">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>DomnulDan – Rentz</title>
+  <meta name="color-scheme" content="dark light" />
+  <style>
+    html,body{height:100%;margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;background:#0b0b0b;color:#eaeaea;}
+    .wrap{height:100%;display:flex;align-items:center;justify-content:center;}
+    .box{max-width:720px;padding:24px;line-height:1.35;opacity:.92}
+    a{color:#9ad;}
+    .small{opacity:.7;font-size:12px;margin-top:10px}
+  </style>
+</head>
+<body>
+  <div class="wrap"><div class="box">
+    <div>Se încarcă…</div>
+    <div class="small">(dacă rămâne blocat, apasă: <a href="./index-desktop.html">Desktop</a> · <a href="./index-mobile.html">Mobile</a>)</div>
+  </div></div>
+
+<script>
+(function(){
+  const params = new URLSearchParams(location.search);
+  const force = (params.get('force')||'').toLowerCase();
+  if(force === 'desktop') return location.replace('./index-desktop.html' + location.hash);
+  if(force === 'mobile')  return location.replace('./index-mobile.html'  + location.hash);
+
+  const w = Math.max(screen.width, screen.height);
+  const h = Math.min(screen.width, screen.height);
+  const touch = ('ontouchstart' in window) || (navigator.maxTouchPoints||0) > 0;
+
+  // Heuristic: treat phones as mobile; keep tablets/laptops on desktop.
+  // (phones typically have a small "short side" even in landscape)
+  const isPhoneLike = touch && h <= 520; // landscape short-side threshold
+
+  const target = isPhoneLike ? './index-mobile.html' : './index-desktop.html';
+  location.replace(target + location.search.replace(/(^\?|&)force=[^&]*/,'') + location.hash);
+})();
+</script>
+</body>
+</html>

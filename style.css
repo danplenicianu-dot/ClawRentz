@@ -1,0 +1,333 @@
+
+:root{
+  --felt:#0a0a0a;
+  --rail:#1b1b1b;
+  --text:#e7e7e7;
+  --muted:#9aa3a7;
+  --accent:#d4af37; /* gold */
+  --halo:rgba(212,175,55,.55); /* gold halo */
+  --red:#e4585a;
+}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0;font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Arial,sans-serif;background:#080808;color:var(--text)}
+.app{min-height:100%;position:relative;overflow:hidden}
+
+/* Score panel */
+.score-panel{
+  position:fixed;top:14px;left:14px;
+  background:rgba(0,0,0,.5);backdrop-filter:none;
+  border:1px solid rgba(255,255,255,.06);border-radius:12px;
+  padding:10px 12px; font-size:12px; pointer-events:none; z-index:50;
+}
+.score-title{font-weight:600;opacity:.9;margin-bottom:6px}
+.score-panel ul{list-style:none;margin:0;padding:0;opacity:.9}
+.score-panel li{line-height:1.4}
+
+/* HUD current game */
+.hud-game{
+  position:fixed;top:16px;right:16px;
+  background:rgba(0,0,0,.4);border:1px solid rgba(255,255,255,.06);
+  border-radius:10px;padding:8px 10px;font-size:12px; z-index:50;
+}
+.hidden{display:none !important}
+
+/* Table */
+.table-wrap{display:flex;justify-content:center;align-items:center;min-height:100vh;padding:24px}
+.table-oval{
+  position:relative;width:min(1100px,92vw);aspect-ratio:2.1/1;overflow:visible;
+  background:
+    radial-gradient(80% 110% at 50% 50%, rgba(255,255,255,.05), transparent 60%),
+    radial-gradient(120% 120% at 50% 50%, rgba(255,255,255,.03), transparent 55%),
+    repeating-linear-gradient(45deg, #0b0b0b 0 4px, #0c0c0c 4px 8px);
+  border-radius:999px;
+  box-shadow:inset 0 0 0 12px var(--rail), 0 30px 80px rgba(0,0,0,.8);
+  outline:2px solid #0e0e0e;
+}
+.center-area{position:absolute;inset:18% 26%;border:1px dashed rgba(255,255,255,.12);border-radius:18px;display:flex;align-items:center;justify-content:center}
+.center-dash{font-size:14px;color:var(--muted)}
+.center-cards{ position:absolute; inset:0; pointer-events:none; }
+.center-spot{ position:absolute; width:64px; height:92px; border-radius:12px; opacity:0 }
+
+#spot-top{ left:50%; top:18%; transform:translate(-50%,0); }
+#spot-bottom{ left:50%; bottom:18%; transform:translate(-50%,0); }
+#spot-left{ left:22%; top:50%; transform:translate(0,-50%); }
+#spot-right{ right:22%; top:50%; transform:translate(0,-50%); }
+
+/* Seats */
+.seat{position:absolute;display:flex;flex-direction:column;align-items:center;gap:8px}
+.seat .seat-name{
+  font-size:13px;padding:6px 10px;border-radius:14px;
+  background:rgba(0,0,0,.45);border:1px solid rgba(255,255,255,.08)
+}
+.seat .seat-name{ position:relative; }
+.seat.active .seat-name{ box-shadow:0 0 0 3px var(--halo), 0 0 20px rgba(212,175,55,.35); }
+.pile-badge{
+  font-size:11px;background:rgba(0,0,0,.5);border:1px solid rgba(255,255,255,.08);
+  border-radius:10px;padding:2px 6px;opacity:.9
+}
+
+  .seat-bottom{left:50%;bottom:-12%;transform:translateX(-50%)}
+.seat-top{left:50%;top:-14%;transform:translateX(-50%)}
+.seat-left{left:-7%;top:50%;transform:translateY(-50%)}
+.seat-right{right:-7%;top:50%;transform:translateY(-50%)}
+
+/* Hands */
+.hand{display:flex;gap:8px;flex-wrap:nowrap;max-width:90%;justify-content:center}
+.hand.botside{ position:relative; min-height:96px; }
+
+/* Card visuals */
+.card{
+  width:64px;height:92px;border-radius:12px;border:1px solid rgba(0,0,0,.25);background:#fff;color:#222;
+  box-shadow:0 8px 14px rgba(0,0,0,.35);
+  position:relative;user-select:none;display:flex;align-items:center;justify-content:center;
+  transition:transform .12s ease, box-shadow .12s ease, filter .12s ease;
+}
+.card .rank{position:absolute;top:6px;left:6px;font-weight:700;font-size:14px}
+.card .suit{font-size:22px}
+.card .rank.rev{position:absolute;bottom:6px;right:6px;transform:rotate(180deg);font-weight:700;font-size:14px}
+.card.red{color:var(--red)}
+.card:hover{transform:translateY(-4px); box-shadow:0 10px 18px rgba(0,0,0,.45)}
+.card.disabled{filter:grayscale(.85);opacity:.65;pointer-events:none}
+
+/* Back of card (bots) */
+.card.back{
+  background:#f3edd9; color:#111; border-color:#c9b98a;
+  display:flex;align-items:center;justify-content:center;
+}
+.card.back .diamond{
+  width:26px; height:26px; transform:rotate(45deg);
+  background:#111; border-radius:3px; position:relative; display:flex; align-items:center; justify-content:center;
+}
+.card.back .diamond span{
+  transform:rotate(-45deg); color:#f3edd9; font-weight:700; font-size:14px;
+}
+/* bot stack shadows */
+.stack-shadow{
+  position:absolute; inset:6px 8px auto auto; width:56px; height:84px;
+  background:#d9d0b3; border:1px solid #bcae7f; border-radius:10px;
+  transform: rotate(-2deg); opacity:.6; filter:blur(.2px);
+}
+.stack-shadow.two{ inset:10px 14px auto auto; transform: rotate(3deg); opacity:.4; }
+
+/* suit separation for human hand */
+.suit-gap{ width:14px; height:1px; display:inline-block; }
+
+/* Winner highlight */
+.fly.will-win{
+  box-shadow: 0 0 0 3px rgba(212,175,55,.9), 0 0 22px rgba(212,175,55,.55), 0 10px 18px rgba(0,0,0,.45) !important;
+}
+
+/* modal & overlay */
+.modal.hidden{ display:none !important; }
+.overlay.hidden{ display:none !important; }
+.modal{ position:fixed; inset:0; background:transparent; backdrop-filter:none; display:flex; align-items:center; justify-content:center; z-index:30; }
+.modal-card{ width:min(560px,92vw); background:#0f0f0f; border:1px solid rgba(255,255,255,.08); border-radius:16px;
+  padding:18px 18px 12px; box-shadow:0 30px 80px rgba(0,0,0,.7) }
+.modal-card h2{ margin:0 0 4px; font-size:20px }
+.muted{ color:var(--muted); font-size:12px; margin:0 0 12px }
+.games{ display:grid; grid-template-columns:1fr; gap:10px }
+.game-btn{
+  padding:10px 12px;background:#121212;border:1px solid rgba(255,255,255,.08);border-radius:12px;
+  color:#eaeaea;cursor:pointer;transition:transform .06s ease, background .2s
+}
+.game-btn:hover{transform:translateY(-1px);background:#161616}
+
+.overlay{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.5);backdrop-filter:none; z-index:40}
+.overlay-card{
+  width:min(420px,92vw);background:#0f0f0f;border:1px solid rgba(255,255,255,.08);border-radius:16px;padding:18px;
+  box-shadow:0 30px 80px rgba(0,0,0,.7)
+}
+.overlay-card h1{margin:0 0 10px;font-size:22px}
+.overlay-card label{display:block;font-size:12px;color:var(--muted);margin:4px 0}
+.overlay-card input, .overlay-card select{
+  width:100%;padding:10px 12px;background:#131313;color:#eee;border:1px solid rgba(255,255,255,.08);border-radius:10px
+}
+.overlay-card button{
+  width:100%;margin-top:14px;padding:10px 12px;background:#1a1609;border:1px solid rgba(212,175,55,.35);
+  border-radius:10px;color:#f3e9b6;cursor:pointer
+}
+
+/* toast */
+.toast{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);background:rgba(0,0,0,.6);border:1px solid rgba(255,255,255,.08);color:#eaeaea;padding:8px 12px;border-radius:10px;opacity:0;transition:opacity .25s; z-index:80}
+.toast.show{opacity:1}
+
+/* v0.3.3: ensured classes are present (no-op marker) */
+
+/* v0.3.8: explicit target spots */
+.center-spot{position:absolute;width:64px;height:92px;transform:translate(-50%,-50%);}
+
+/* v0.4.0 ensure spots */
+.center-spot{position:absolute;width:64px;height:92px;transform:translate(-50%,-50%);}
+
+/* v0.5.0: round summary + disabled game buttons */
+.summary-table{width:100%; margin-top:12px;}
+.summary-table .rows{display:flex; flex-direction:column; gap:8px;}
+.summary-table .row{display:grid; grid-template-columns: 1.6fr 1fr 0.8fr 0.8fr 0.8fr 0.8fr 0.8fr; gap:8px; align-items:center; background:rgba(255,255,255,0.02); padding:8px 10px; border-radius:12px;}
+.summary-table .cell.name{font-weight:600;}
+.summary-table .cell.score{justify-self:end; font-weight:700;}
+.game-btn.disabled{opacity:.45; pointer-events:none;}
+.modal .modal-actions{display:flex; justify-content:flex-end; margin-top:12px;}
+.game-btn.primary{background:#2c3; color:#081; border:1px solid rgba(255,255,255,0.08);}
+.game-btn.primary:hover{filter:brightness(1.06);}
+
+/* v0.5.5 overrides (non-invasive) */
+.modal{background:transparent!important;backdrop-filter:none!important}
+body.no-dim .table-wrap, 
+body.no-dim .table-oval, 
+body.no-dim .hand,
+body.no-dim .seat-bottom, 
+body.no-dim .seat-top, 
+body.no-dim .seat-left, 
+body.no-dim .seat-right{filter:none!important;opacity:1!important}
+
+/* v0.5.6 stronger no-dim */
+body.no-dim * { filter:none !important; opacity:1 !important; pointer-events:auto !important; }
+
+/* v0.5.7 ensure selector is always clickable */
+.modal{ z-index: 9999 !important; }
+.modal .modal-card{ pointer-events:auto !important; }
+.modal .game-btn{ pointer-events:auto !important; }
+.modal *{ pointer-events:auto !important; }
+
+/* v0.5.8 selector hover gold */
+#selector .game-btn:hover{
+  box-shadow: 0 0 0 2px #d4af37 inset, 0 0 16px rgba(212,175,55,0.35);
+  transform: translateY(-1px);
+}
+#selector .game-btn:focus{ outline:2px solid #d4af37; outline-offset:2px; }
+
+
+/* Outline/Halo pentru prima carte din levată */
+.center-cards .fly.lead-card {
+  box-shadow: 0 0 0 3px rgba(212,175,55,0.75), 0 0 12px rgba(212,175,55,0.9);
+  border-radius: 8px;
+}
+
+/* Optional: highlight potential winner */
+.center-cards .fly.will-win {
+  outline: 2px solid rgba(255,215,0,0.7);
+  outline-offset: 2px;
+}
+
+/* Safe mode tweaks (Safari fallback) */
+.safe-mode .center-cards .fly {
+  transition: transform 0.55s ease, opacity 0.55s ease;
+}
+
+
+/* Rentz modal (skeleton) */
+.modal{ position:fixed; inset:0; background:rgba(0,0,0,0.55); align-items:center; justify-content:center; z-index:999; }
+.modal .modal-content{ background:#111; color:#eee; padding:20px; border-radius:12px; min-width:320px; max-width:520px; box-shadow:0 10px 30px rgba(0,0,0,0.5); }
+.modal .modal-actions{ display:flex; gap:10px; justify-content:flex-end; margin-top:14px; }
+.modal.hidden{ display:none !important; }
+.btn{ padding:8px 14px; border-radius:10px; border:1px solid #444; background:#222; color:#fff; cursor:pointer; }
+.btn.danger{ background:#6a1a1a; border-color:#8b2d2d; }
+
+
+/* ===== Selector: vizual pentru opțiuni deja jucate ===== */
+#selector .game-btn.disabled {
+  opacity: 0.45;
+  filter: grayscale(70%);
+  cursor: not-allowed;
+  border-color: #555 !important;
+  transform: none !important;
+  box-shadow: none !important;
+  position: relative;
+}
+#selector .game-btn.disabled:hover,
+#selector .game-btn.disabled:focus {
+  transform: none !important;
+  box-shadow: none !important;
+  outline: none !important;
+}
+#selector .game-btn.disabled::after {
+  content: "JUCAT";
+  position: absolute;
+  top: 6px;
+  right: 8px;
+  font-size: 10px;
+  letter-spacing: 0.5px;
+  padding: 2px 6px;
+  border-radius: 10px;
+  background: #333;
+  border: 1px solid #555;
+  color: #cfcfcf;
+}
+
+
+/* v0.6.4.4-EDGE inline patch */
+.seat .subgames-line{
+  display:flex;
+  gap:6px;
+  justify-content:center;
+  align-items:center;
+  margin-top:6px;
+  min-height:18px;
+}
+.seat .subgames-line .sg{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  min-width:18px;
+  height:18px;
+  padding:0 6px;
+  border-radius:999px;
+  font-size:11px;
+  background:#222;
+  border:1px solid #444;
+  color:#ddd;
+  user-select:none;
+}
+
+
+/* SAFE UI patches */
+.seat .subgames-line{
+  display:flex;
+  gap:6px;
+  justify-content:center;
+  align-items:center;
+  margin-top:6px;
+  min-height:18px;
+}
+.seat .subgames-line .sg{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  min-width:18px;
+  height:18px;
+  padding:0 6px;
+  border-radius:999px;
+  font-size:11px;
+  background:#222;
+  border:1px solid #444;
+  color:#ddd;
+  user-select:none;
+}
+
+/* Rentz modal */
+.modal{ position:fixed; inset:0; background:rgba(0,0,0,0.55); display:none; align-items:center; justify-content:center; z-index:9999; }
+.modal-content{ background:#111; color:#eee; padding:20px; border-radius:12px; min-width:360px; max-width:640px; box-shadow:0 10px 30px rgba(0,0,0,0.5); }
+.modal.hidden{ display:none !important; }
+.modal .lanes{ display:grid; grid-template-columns: repeat(2, minmax(140px,1fr)); gap:8px; margin:12px 0; }
+.modal .lane{ background:#191919; border:1px dashed #444; padding:10px; border-radius:10px; text-align:center; }
+.modal .modal-actions{ display:flex; gap:10px; justify-content:flex-end; margin-top:10px; }
+.btn{ padding:8px 14px; border-radius:10px; border:1px solid #444; background:#222; color:#fff; cursor:pointer; }
+.btn.danger{ background:#6a1a1a; border-color:#8b2d2d; }
+
+
+/* Rentz banner */
+.rentz-toast{
+  position: fixed;
+  top: 18px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(20,20,20,0.95);
+  color: #eee;
+  padding: 10px 14px;
+  border-radius: 10px;
+  border: 1px solid #555;
+  z-index: 10000;
+  box-shadow: 0 6px 18px rgba(0,0,0,0.35);
+  pointer-events: none;
+  font-size: 14px;
+}

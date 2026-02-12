@@ -1,0 +1,1570 @@
+<!doctype html>
+<html lang="ro">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Rentz & Trick-Taking — Faza 1</title>
+  <link rel="stylesheet" href="./style.css?v=3.4.1">
+  <script>
+  // ===== Core game logic (inline, loads before body for reliability) =====
+  (function(){
+    // Small helpers
+    function $(sel,root){ return (root||document).querySelector(sel); }
+    function $all(sel,root){ return Array.from((root||document).querySelectorAll(sel)); }
+
+    // State (exposed for failsafes)
+    const SUITS = ['♣','♦','♥','♠'];
+    const RED = new Set(['♦','♥']);
+    const RANKS_4 = ['A','K','Q','J','10','9','8','7'];
+    const RANK_VALUE = {'A':14,'K':13,'Q':12,'J':11,'10':10,'9':9,'8':8,'7':7};
+
+    window.__state = {
+      players:[
+        {name:'Domnul Dan', isHuman:true, hand:[]},
+        {name:'Bot A', isHuman:false, hand:[]},
+        {name:'Bot B', isHuman:false, hand:[]},
+        {name:'Bot C', isHuman:false, hand:[]},
+      ],
+      piles:[0,0,0,0], totals:[0,0,0,0],
+      trick:[],
+      turn:0,
+      leadIndex:0,
+      gameName:null,
+      chooserIndex:0,
+      chosenGames:[new Set(), new Set(), new Set(), new Set()],
+      stats:[{tricks:0,diamonds:0,queens:0,kh:false,t10c:false},{tricks:0,diamonds:0,queens:0,kh:false,t10c:false},{tricks:0,diamonds:0,queens:0,kh:false,t10c:false},{tricks:0,diamonds:0,queens:0,kh:false,t10c:false}],
+      lastScores:[0,0,0,0]
+    };
+    const state = window.__state;
+
+    // References (filled after DOMContentLoaded)
+    let startOverlay, selector, nameInput, hudGameName, centerDash, centerCards;
+    let seatsEls, handsEls;
+
+    // Utils
+    function shuffle(a){ for(let i=a.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; } return a; }
+    function makeDeck4(){ const d=[]; let id=0; for(const s of SUITS){ for(const r of RANKS_4){ d.push({id:id++, suit:s, rank:r}); } } return d; }
+    function sortHand(cards){ const orderSuit={'♣':0,'♦':1,'♥':2,'♠':3}; return cards.slice().sort((a,b)=> orderSuit[a.suit]-orderSuit[b.suit] || RANK_VALUE[a.rank]-RANK_VALUE[b.rank]); }
+
+    function setActiveSeat(i){ Object.values(seatsEls).forEach(el=>el.classList.remove('active')); seatsEls[i].classList.add('active'); }
+
+    function createCardFace(c){
+      const d = document.createElement('div');
+      d.className = 'card' + (RED.has(c.suit)?' red':'');
+      d.dataset.id = c.id;
+      d.innerHTML = '<div class="rank">'+c.rank+'</div><div class="suit">'+c.suit+'</div><div class="rank rev">'+c.rank+'</div>';
+      return d;
+    }
+    function createCardBack(count){
+      const d = document.createElement('div');
+      d.className = 'card back';
+      d.innerHTML = '<div class="diamond"><span>'+Math.max(0,Math.min(99,count))+'</span></div>';
+      return d;
+    }
+
+    function canPlay(i,card){
+      if(i!==state.turn) return false;
+      if(state.trick.length===0) return true;
+      const leadSuit = state.trick[0].card.suit;
+      const hasLead = state.players[i].hand.some(c=>c.suit===leadSuit);
+      return !hasLead || card.suit===leadSuit;
+    }
+    function removeFromHand(i, card){
+      const h = state.players[i].hand;
+      const k = h.findIndex(x=>x.id===card.id);
+      if(k>=0) h.splice(k,1);
+    }
+
+    window.renderHands = function(){
+      for(let i=0;i<4;i++){
+        const el = handsEls[i]; el.innerHTML='';
+        const isHuman = state.players[i].isHuman;
+        const hand = isHuman ? sortHand(state.players[i].hand) : state.players[i].hand;
+        if(isHuman){
+          let prev=null;
+          for(const c of hand){
+            if(prev!==null && prev!==c.suit){ const gap=document.createElement('div'); gap.className='suit-gap'; el.appendChild(gap); }
+            prev=c.suit;
+            const card = createCardFace(c);
+            if(!canPlay(i,c)) card.classList.add('disabled');
+            card.addEventListener('click', ()=>playCard(i,c));
+            el.appendChild(card);
+          }
+        } else {
+          const s1=document.createElement('div'); s1.className='stack-shadow';
+          const s2=document.createElement('div'); s2.className='stack-shadow two';
+          const back=createCardBack(state.players[i].hand.length); back.classList.add('bot-back'); back.dataset.player=i;
+          el.appendChild(s1); el.appendChild(s2); el.appendChild(back);
+        }
+      }
+      $all('.pile-badge').forEach((b,idx)=> b.textContent = state.piles[idx]);
+      centerDash.textContent = state.gameName||'';
+    };
+
+    window.resetStats = function(){ state.stats=[{tricks:0,diamonds:0,queens:0,kh:false,t10c:false},{tricks:0,diamonds:0,queens:0,kh:false,t10c:false},{tricks:0,diamonds:0,queens:0,kh:false,t10c:false},{tricks:0,diamonds:0,queens:0,kh:false,t10c:false}]; };
+
+    window.deal = function(){
+      const deck = shuffle(makeDeck4());
+      for(let i=0;i<4;i++) state.players[i].hand=[];
+      for(let n=0;n<8;n++){ for(let p=0;p<4;p++){ state.players[p].hand.push(deck.pop()); } }
+      // cine are 7♣ dă startul
+      let lead = 0;
+      for(let i=0;i<4;i++){ if(state.players[i].hand.some(c=>c.rank==='7' && c.suit==='♣')) lead=i; }
+      state.leadIndex=lead; state.turn=lead; state.trick=[];
+      setActiveSeat(state.turn);
+    };
+
+    // Diamond around center of trick area with explicit target spots
+    let endTargets = {0:{x:0,y:0},1:{x:0,y:0},2:{x:0,y:0},3:{x:0,y:0}};
+    window.updateSpotPositions = function(){
+      if(!state.gameName) return;
+      const cen = centerCards.getBoundingClientRect();
+      const cx = cen.width/2, cy = cen.height/2;
+      const hx = Math.min(160, Math.max(100, cen.width * 0.13));
+      const vy = Math.min(120, Math.max(80,  cen.height* 0.14));
+      const top  = $('#spot-top'), right=$('#spot-right'), bottom=$('#spot-bottom'), left=$('#spot-left');
+      if(top){   top.style.left = (cx)+'px';    top.style.top = (cy - vy)+'px'; }
+      if(bottom){bottom.style.left = (cx)+'px'; bottom.style.top = (cy + vy)+'px'; }
+      if(right){ right.style.left = (cx + hx)+'px'; right.style.top = (cy)+'px'; }
+      if(left){  left.style.left = (cx - hx)+'px';  left.style.top = (cy)+'px'; }
+      endTargets[0]={x:cx,      y:cy + vy};
+      endTargets[2]={x:cx,      y:cy - vy};
+      endTargets[1]={x:cx + hx, y:cy};
+      endTargets[3]={x:cx - hx, y:cy};
+    };
+    window.addEventListener('resize', function(){ try{ updateSpotPositions(); }catch(e){} });
+
+    function trickWinner(){
+      const leadSuit = state.trick[0].card.suit;
+      let best = state.trick[0];
+      for(const play of state.trick.slice(1)){
+        if(play.card.suit===leadSuit && RANK_VALUE[play.card.rank] > RANK_VALUE[best.card.rank]) best = play;
+      }
+      return best;
+    }
+    function getBotBackEl(i){ return handsEls[i].querySelector('.card.back.bot-back') || handsEls[i].querySelector('.card.back'); }
+
+    function flyFromSeatToCenter(i, card){
+      const sourceEl = state.players[i].isHuman ? handsEls[i] : (getBotBackEl(i) || handsEls[i]);
+      const src = sourceEl.getBoundingClientRect();
+      const cen = centerCards.getBoundingClientRect();
+      const startX = (src.left + src.width/2) - (cen.left);
+      const startY = (src.top + src.height/2) - (cen.top);
+      updateSpotPositions();
+      const target = endTargets[i] || {x:cen.width/2,y:cen.height/2};
+      const clone = createCardFace(card);
+      clone.className += ' fly';
+      clone.dataset.player = i; clone.dataset.id = card.id;
+      clone.style.position='absolute'; clone.style.left='0px'; clone.style.top='0px';
+      clone.style.transform = 'translate('+(startX-32)+'px,'+(startY-46)+'px)';
+      centerCards.appendChild(clone);
+      clone.animate([
+        { transform:'translate('+(startX-32)+'px,'+(startY-46)+'px) rotate('+(i*4)+'deg)', opacity:.95 },
+        { transform:'translate('+(target.x-32)+'px,'+(target.y-46)+'px) rotate(0deg)', opacity:1 }
+      ], {duration:520, easing:'ease', fill:'forwards'});
+    }
+    function fanInToWinner(w){
+      const els = $all('.center-cards .fly');
+      const target = seatsEls[w].getBoundingClientRect();
+      const cen = centerCards.getBoundingClientRect();
+      const dx = (target.left + target.width/2) - (cen.left);
+      const dy = (target.top + target.height/2) - (cen.top);
+      els.forEach(el=>{
+        const m = getComputedStyle(el).transform;
+        el.animate([{ transform:m },{ transform:'translate('+(dx-32)+'px,'+(dy-46)+'px) scale(.85)'}], {duration:450, easing:'ease', fill:'forwards'});
+      });
+      setTimeout(()=> centerCards.innerHTML='', 480);
+    }
+
+    function nextTurn(){ state.turn=(state.turn+1)%4; setActiveSeat(state.turn); renderHands(); maybeBotPlay(); }
+
+    window.playCard = function(i, card){
+      if(!canPlay(i,card)) return;
+      removeFromHand(i, card);
+      state.trick.push({player:i, card});
+      // remove previous lead markers
+      try{ document.querySelectorAll('.center-cards .lead-card').forEach(e=>e.classList.remove('lead-card')); }catch(e){}
+      flyFromSeatToCenter(i, card);
+      // mark first card of trick with halo
+      if(state.trick.length===1){
+        setTimeout(()=>{
+          const el = document.querySelector('.center-cards .fly[data-id=\"'+card.id+'\"]');
+          if(el) el.classList.add('lead-card');
+        }, 10);
+      }
+renderHands();
+
+      if(state.trick.length===4){
+        setTimeout(()=>{
+          const best = trickWinner();
+          const el = $('.center-cards .fly[data-id="'+best.card.id+'"]'); if(el) el.classList.add('will-win');
+          setTimeout(()=>{
+            state.piles[best.player]+=1;
+            // update stats for winner
+            state.stats[best.player].tricks += 1;
+            state.trick.forEach(t=>{
+              if(t.card.suit==='♦') state.stats[best.player].diamonds += 1;
+              if(t.card.rank==='Q') state.stats[best.player].queens += 1;
+              if(t.card.rank==='K' && t.card.suit==='♥') state.stats[best.player].kh = true;
+              if(t.card.rank==='10' && t.card.suit==='♣') state.stats[best.player].t10c = true;
+            });
+            // Early termination check based on current subgame
+            if(earlyEndIfResolved()){
+              return;
+            }
+            fanInToWinner(best.player);
+            state.trick=[]; state.turn=best.player; setActiveSeat(best.player);
+            setTimeout(()=>{ 
+              renderHands(); 
+              const handsEmpty = !state.players.some(p=>p.hand && p.hand.length>0);
+              if(handsEmpty){ finalizeRound(); } else { maybeBotPlay(); }
+            }, 520);
+          }, 620);
+        }, 380);
+      } else {
+        nextTurn();
+      }
+    };
+
+    function botPick(i){
+      const leadSuit = state.trick[0]?.card.suit;
+      const hand = state.players[i].hand.slice();
+      let choice=null;
+      if(!leadSuit){ hand.sort((a,b)=> RANK_VALUE[a.rank]-RANK_VALUE[b.rank]); choice = hand[0]; }
+      else{
+        const follow = hand.filter(c=>c.suit===leadSuit).sort((a,b)=> RANK_VALUE[a.rank]-RANK_VALUE[b.rank]);
+        choice = follow[0] || hand.sort((a,b)=> RANK_VALUE[a.rank]-RANK_VALUE[b.rank])[0];
+      }
+      return choice;
+    }
+    window.maybeBotPlay = function(){ const p=state.turn; if(state.players[p].isHuman) return; const c = botPick(p); setTimeout(()=> window.playCard(p,c), 620); }
+
+    // Start + Choose exposed early
+    window.__start = function(){ try{ const seatName = document.querySelector('.seat-bottom .seat-name'); if(seatName && nameInput){ seatName.textContent = nameInput.value.trim() || 'Tu'; } }catch(e){} try{ if(startOverlay){ startOverlay.classList.add('hidden'); startOverlay.style.display='none'; } }catch(e){} startNewRound(); };
+    window.__choose = function(name){
+      try{
+        if(hudGameName){ hudGameName.textContent = name; hudGameName.classList.remove('hidden'); }
+        if(selector){ selector.classList.add('hidden'); selector.style.display='none'; }
+        if(centerDash){ centerDash.textContent = name; }
+        state.gameName = name;
+        updateSpotPositions();
+        if(!state.players[state.turn].isHuman) maybeBotPlay();
+      }catch(e){}
+    };
+
+    
+    // ===== Scoring =====
+    // Early termination logic for subgames
+    function earlyEndIfResolved(){
+      try{
+        if(state.roundOver) return false;
+        const game = state.gameName;
+        if(!game) return false;
+        // count aggregates
+        const totalQueens = (state.stats||[]).reduce((a,s)=>a+(s.queens||0),0);
+        const totalDiamonds = (state.stats||[]).reduce((a,s)=>a+(s.diamonds||0),0);
+        const anyKH = (state.stats||[]).some(s=>!!s.kh);
+        const any10C = (state.stats||[]).some(s=>!!s.t10c);
+        if(game==='Dame' && totalQueens>=4) { finalizeRound(); state.roundOver=true; return true; }
+        if(game==='Carouri' && totalDiamonds>=8) { finalizeRound(); state.roundOver=true; return true; }
+        if(game==='Popa Roșu' && anyKH) { finalizeRound(); state.roundOver=true; return true; }
+        if(game==='10 Trefla' && any10C) { finalizeRound(); state.roundOver=true; return true; }
+        return false;
+      }catch(e){ return false; }
+    }
+
+    const GAMES = ['Carouri','Dame','Popa Roșu','10 Trefla','Whist','Rentz','Totale'];
+    function scoreFor(game, st){
+      switch(game){
+        case 'Carouri': return -20 * st.diamonds;
+        case 'Dame': return -30 * st.queens;
+        case 'Popa Roșu': return st.kh ? -100 : 0;
+        case '10 Trefla': return st.t10c ? 100 : 0;
+        case 'Whist': return 20 * st.tricks;
+        case 'Totale': return (-10 * st.tricks) + (-20 * st.diamonds) + (-30 * st.queens) + (st.kh ? -100 : 0);
+        default: return 0;
+      }
+    }
+    function updateLeftScorePanel(){
+  const ul = document.getElementById('scoreList');
+  if(!ul) return;
+  ul.innerHTML = '';
+  // Build list with totals
+  const rows = [];
+  for(let i=0;i<4;i++){
+    rows.push({i, name: state.players[i].name, total: (state.totals && state.totals[i]) || 0});
+  }
+  rows.sort((a,b)=> b.total - a.total);
+  let __i=0;
+  for(const r of rows){
+    const icon = (__i===0 ? '👑 ' : (__i===1 ? '🥈 ' : (__i===2 ? '🥉 ' : '🐔 ')));
+    const li = document.createElement('li');
+    li.textContent = icon + r.name + ' — ' + r.total;
+    ul.appendChild(li);
+    __i++;
+  }
+}
+    function finalizeRound(){
+      const game = state.gameName || '—';
+      const scores = [0,0,0,0];
+      for(let i=0;i<4;i++){ scores[i] = scoreFor(game, state.stats[i]); }
+      state.lastScores = scores.slice();
+      const title = document.getElementById('roundSummaryTitle');
+      if(title) title.textContent = 'Rezumat runda — ' + game;
+      const tbl = document.getElementById('roundSummaryTable');
+      if(tbl){
+      // accumulate totals and refresh leaderboard
+      if(!state.totals) state.totals = [0,0,0,0];
+      for(let i=0;i<4;i++){ state.totals[i] += scores[i]; }
+      try{ updateLeftScorePanel(); }catch(e){}
+        tbl.innerHTML = '';
+        const rows = document.createElement('div'); rows.className = 'rows';
+        for(let i=0;i<4;i++){
+          const r = document.createElement('div'); r.className = 'row';
+          r.innerHTML = '<div class="cell name">'+state.players[i].name+'</div>' +
+                        '<div class="cell score">'+(scores[i] >=0 ? '+'+scores[i] : scores[i])+'</div>';
+          rows.appendChild(r);
+        }
+        tbl.appendChild(rows);
+      }
+      const modal = document.getElementById('roundSummary');
+      if(modal){ modal.classList.remove('hidden'); modal.style.display='flex'; }
+      updateLeftScorePanel();
+      const chooser = state.chooserIndex||0;
+      const set = state.chosenGames[chooser];
+      set.add(game);
+    }
+    window.__continue = function(){
+      state.roundOver=false;
+      state.chooserIndex = (state.chooserIndex + 1) % 4;
+      const modal = document.getElementById('roundSummary');
+      if(modal){ modal.classList.add('hidden'); modal.style.display='none'; }
+      startNewRound();
+    };
+
+    // ===== Round control & selector population =====
+    function populateSelector(){
+      const chooser = state.chooserIndex||0;
+      const title = document.getElementById('selectorTitle');
+      if(title){ title.textContent = 'Alege jocul — ' + state.players[chooser].name; }
+      const buttons = document.querySelectorAll('#selector .games .game-btn');
+      buttons.forEach(btn=>{
+        const name = btn.textContent.trim();
+        const chosen = state.chosenGames[chooser].has(name);
+        if(chosen){
+          btn.disabled = true;
+          btn.classList.add('disabled');
+          btn.setAttribute('aria-disabled','true');
+          btn.setAttribute('tabindex','-1');
+        } else {
+          btn.disabled = false;
+          btn.removeAttribute('aria-disabled');
+          btn.setAttribute('tabindex','0');
+          btn.classList.remove('disabled');
+        }
+        btn.onclick = function(){
+          if(name==='Rentz'){
+            alert('Rentz va fi implementat în pasul B. Te rog alege alt joc acum.');
+            return;
+          }
+          window.__choose(name);
+        };
+      });
+    }
+    
+    function chooseGameForBot(chooser){
+      const hand = state.players[chooser].hand || [];
+      // simple features
+      const diamonds = hand.filter(c=>c.suit==='♦').length;
+      const queens = hand.filter(c=>c.rank==='Q').length;
+      const hasKH = hand.some(c=>c.rank==='K' && c.suit==='♥');
+      const has10C = hand.some(c=>c.rank==='10' && c.suit==='♣');
+      const highCount = hand.filter(c=>['A','K','Q','J','10'].includes(c.rank)).length;
+      const allowed = ['Carouri','Dame','Popa Roșu','10 Trefla','Whist','Totale','Rentz'].filter(g=>!state.chosenGames[chooser].has(g));
+      if(allowed.length===0) return 'Rentz';
+      if(allowed.length===1) return allowed[0];
+      // scoring: higher is better for bot
+      const scores = {};
+      for(const g of allowed){
+        let s = 0;
+        if(g==='Carouri'){ s = (diamonds<=1? 3 : diamonds<=2?2: diamonds<=3?1:0); }
+        else if(g==='Dame'){ s = (queens===0?3: queens===1?2: queens===2?1:0); }
+        else if(g==='Popa Roșu'){ s = (!hasKH? 3 : 0); }
+        else if(g==='10 Trefla'){ s = (has10C? 2 : 1); }
+        else if(g==='Whist'){ s = (highCount>=6?3: highCount>=4?2: highCount>=3?1:0); }
+        else if(g==='Totale'){ s = 1; }
+      else if(g==='Rentz'){ s = 1; } // reduce bias toward Totale
+        else if(g==='Rentz'){ s = 1; }
+        scores[g]=s;
+      }
+      // rank by score then by a small random jitter
+      const ranked = allowed.slice().sort((a,b)=> (scores[b]-scores[a]) || (Math.random()-0.5));
+      // small randomness among top candidates
+      const top2 = ranked.slice(0, Math.min(2, ranked.length));
+      return top2[Math.floor(Math.random()*top2.length)];
+    }
+
+    function startNewRound(){
+      resetStats();
+      state.roundOver=false;
+      try{
+        const cc = document.getElementById('centerCards');
+        if(cc){ cc.innerHTML = '<div id="spot-top" class="center-spot"></div><div id="spot-right" class="center-spot"></div><div id="spot-bottom" class="center-spot"></div><div id="spot-left" class="center-spot"></div>'; }
+      }catch(e){}
+      state.gameName=null;
+      centerDash.textContent='';
+      deal();
+      renderHands();
+      const chooser = state.chooserIndex||0;
+      populateSelector();
+      if(!state.players[chooser].isHuman){
+        const pick = chooseGameForBot(chooser);
+        window.__choose(pick);
+      } else {
+        const s = document.getElementById('selector');
+        if(s){ s.classList.remove('hidden'); s.style.display='flex'; }
+      }
+    }
+
+    document.addEventListener('DOMContentLoaded', function(){
+      // Fill refs now that DOM exists
+      startOverlay = $('#startOverlay');
+      selector = $('#selector');
+      nameInput = $('#nameInput');
+      hudGameName = $('#hudGameName');
+      centerDash = $('.center-dash');
+      centerCards = $('#centerCards');
+      seatsEls = {0:$('.seat-bottom'),1:$('.seat-right'),2:$('.seat-top'),3:$('.seat-left')};
+      handsEls = {0:$('#handBottom'),1:$('#handRight'),2:$('#handTop'),3:$('#handLeft')};
+
+      // Initial UI
+      if(selector){ selector.classList.add('hidden'); }
+      if(startOverlay){ startOverlay.classList.remove('hidden'); }
+      if(centerDash){ centerDash.textContent=''; }
+      setActiveSeat(0);
+
+      // Enter to start
+      document.addEventListener('keydown', function(e){ if(!startOverlay.classList.contains('hidden') && e.key==='Enter'){ window.__start(); }});
+    });
+  })();
+  
+
+  try{
+    var isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
+    window.__safeMode = isSafari ? 'safari' : 'normal';
+    if(isSafari){ document.body.classList.add('safe-mode'); }
+  }catch(e){}
+
+</script>
+
+
+<style id="rentzOverlayCSS">
+  .rentz-overlay{position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.6);z-index:10000}
+  .rentz-overlay.show{display:flex}
+  .rentz-overlay .rentz-box{width:min(1100px,92vw);height:min(720px,86vh);background:#0d0d0f;border:1px solid rgba(255,255,255,.08);border-radius:16px;box-shadow:0 20px 60px rgba(0,0,0,.55);overflow:hidden}
+  #rentzFrame{display:block;width:100%;height:100%;background:transparent}
+</style>
+
+
+<!-- Rentz Overlay CSS v3.1.0 (minimal, non-intrusive) -->
+<style id="rentzOverlayCSS310">
+  #rentzOverlay{position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.6);z-index:10000}
+  #rentzOverlay.show{display:flex}
+  #rentzOverlay .box{width:min(1100px,92vw);height:min(720px,86vh);background:#0d0d0f;border:1px solid rgba(255,255,255,.08);border-radius:16px;box-shadow:0 20px 60px rgba(0,0,0,.55);overflow:hidden}
+  #rentzFrame{display:block;width:100%;height:100%;background:transparent}
+  #rentzOverlayBadge{position:fixed;left:12px;top:10px;z-index:10001;font:12px/1 system-ui,-apple-system;color:#c0ffa3;opacity:.9;pointer-events:none}
+</style>
+
+<style>
+/* v3.4.1: force-hide legacy skeleton modal */
+#rentzModal { display: none !important; visibility: hidden !important; }
+</style>
+</head>
+<body>
+  <div id="app" class="app">
+    <div class="score-panel">
+      <div class="score-title">Scor total</div>
+      <ul id="scoreList">
+        <li>Domnul Dan — 0</li>
+        <li>Bot A — 0</li>
+        <li>Bot B — 0</li>
+        <li>Bot C — 0</li>
+      </ul>
+    </div>
+
+    <div id="hudGameName" class="hud-game hidden"></div>
+
+    <div class="table-wrap">
+      <div class="table-oval">
+        <div class="center-area">
+          <div class="center-dash"></div>
+          <div id="centerCards" class="center-cards" style="z-index:60;">
+            <div id="spot-top" class="center-spot"></div>
+            <div id="spot-right" class="center-spot"></div>
+            <div id="spot-bottom" class="center-spot"></div>
+            <div id="spot-left" class="center-spot"></div>
+          </div>
+        </div>
+
+        <div class="seat seat-bottom">
+          <div class="seat-name">Domnul Dan</div>
+          <div class="pile-badge">0</div>
+          <div id="handBottom" class="hand"></div>
+        </div>
+        <div class="seat seat-right">
+          <div class="seat-name">Bot A</div>
+          <div class="pile-badge">0</div>
+          <div id="handRight" class="hand botside"></div>
+        </div>
+        <div class="seat seat-top">
+          <div class="seat-name">Bot B</div>
+          <div class="pile-badge">0</div>
+          <div id="handTop" class="hand botside"></div>
+        </div>
+        <div class="seat seat-left">
+          <div class="seat-name">Bot C</div>
+          <div class="pile-badge">0</div>
+          <div id="handLeft" class="hand botside"></div>
+        </div>
+      </div>
+    </div>
+
+    <div id="selector" class="modal hidden">
+      <div class="modal-card">
+        <h2 id="selectorTitle">Alege jocul</h2>
+        <p class="muted">După alegere, începe runda.</p>
+        <div class="games">
+          <button class="game-btn" onclick="window.__choose('Carouri')">Carouri</button>
+          <button class="game-btn" onclick="window.__choose('Dame')">Dame</button>
+          <button class="game-btn" onclick="window.__choose('Popa Roșu')">Popa Roșu</button>
+          <button class="game-btn" onclick="window.__choose('10 Trefla')">10 Trefla</button>
+          <button class="game-btn" onclick="window.__choose('Whist')">Whist</button>
+          <button class="game-btn" onclick="window.__choose('Rentz')">Rentz</button>
+          <button class="game-btn" onclick="window.__choose('Totale')">Totale</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="startOverlay" class="overlay">
+      <div class="overlay-card">
+        <h1>Rentz & Trick-Taking</h1>
+        <label>Numele tău</label>
+        <input id="nameInput" type="text" value="Domnul Dan"/>
+        <label style="margin-top:10px;">Dificultate boți</label>
+        <select id="diffSelect">
+          <option>Ușor</option>
+          <option selected>Normal</option>
+          <option>Avansat</option>
+        </select>
+        <button id="startBtn" type="button" onclick="window.__start()">Start joc</button>
+      </div>
+    </div>
+  
+    <div id="roundSummary" class="modal hidden">
+      <div class="modal-card">
+        <h2 id="roundSummaryTitle">Rezumat runda</h2>
+        <div id="roundSummaryTable" class="summary-table"></div>
+        <div class="modal-actions">
+          <button class="game-btn primary" onclick="window.__continue()">Continuă</button>
+        </div>
+      </div>
+    </div>
+    
+</div>
+
+<script>
+// v0.5.5 post-script: non-invasive runtime hooks
+(function(){
+  const sel = document.getElementById('selector');
+  // Keep hand undimmed whenever selector is visible
+  if(sel){
+    const obs = new MutationObserver(()=>{
+      const hidden = sel.classList.contains('hidden') || sel.style.display==='none';
+      if(hidden){ document.body.classList.remove('no-dim'); }
+      else{ document.body.classList.add('no-dim'); }
+    });
+    obs.observe(sel, {attributes:true, attributeFilter:['class','style']});
+  }
+  // Wrap __choose to enforce chooser starts & remove no-dim on choose
+  const origChoose = window.__choose;
+  window.__choose = function(name){
+    // call original first
+    const rv = origChoose ? origChoose(name) : undefined;
+    try{
+      if(window.__state){
+        const ch = __state.chooserIndex||0;
+        __state.turn = ch;
+        __state.leadIndex = ch;
+        if(typeof setActiveSeat==='function') setActiveSeat(ch);
+        if(typeof renderHands==='function') renderHands();
+        // if chooser is a bot, let bot play; dacă e om, nu forțăm nimic
+        if(__state.players && __state.players[ch] && !__state.players[ch].isHuman){
+          if(typeof maybeBotPlay==='function') maybeBotPlay();
+        }
+      }
+    }catch(e){}
+    document.body.classList.remove('no-dim');
+    return rv;
+  };
+  // Make round summary simple + accumulate totals on top of original finalizeRound
+  const origFinalize = window.finalizeRound;
+  window.finalizeRound = function(){
+    const ret = origFinalize ? origFinalize() : undefined;
+    try{
+      // Ensure totals exist
+      if(window.__state){
+        if(!__state.totalScores) __state.totalScores=[0,0,0,0];
+        // Left panel uses totals (if original didn't update, recompute from lastScores)
+        if(Array.isArray(__state.lastScores)){
+          for(let i=0;i<4;i++) __state.totalScores[i] += (__state.lastScores[i]||0);
+        }
+        // Update left panel list
+        const ul = document.getElementById('scoreList');
+        if(ul){
+          ul.innerHTML='';
+          for(let i=0;i<4;i++){
+            const li=document.createElement('li');
+            li.textContent = (__state.players[i]?.name || ('Juc '+(i+1))) + ' — ' + __state.totalScores[i];
+            ul.appendChild(li);
+          }
+        }
+      }
+      // Simplify round summary table UI
+      const tbl = document.getElementById('roundSummaryTable');
+      if(tbl && window.__state){
+        const scores = __state.lastScores || [0,0,0,0];
+        tbl.innerHTML='';
+        const rows = document.createElement('div'); rows.className='rows';
+        for(let i=0;i<4;i++){
+          const r=document.createElement('div'); r.className='row simple';
+          r.innerHTML = '<div class="cell name">'+(__state.players[i]?.name||('Juc '+(i+1)))+'</div>' +
+                        '<div class="cell score">'+(scores[i]>=0? ('+'+scores[i]): scores[i])+'</div>';
+          rows.appendChild(r);
+        }
+        tbl.appendChild(rows);
+      }
+    }catch(e){}
+    return ret;
+  };
+  // Also set selector title to chooser name when it opens (non-breaking)
+  const title = document.getElementById('selectorTitle');
+  if(title && window.__state){
+    const ch = __state.chooserIndex||0;
+    title.textContent = 'Alege jocul — ' + (__state.players[ch]?.name || 'Jucător');
+  }
+})();
+</script>
+
+
+<script>
+// v0.5.7 selector click hardening + chooser-first-turn refresh
+(function(){
+  function armButtons(){
+    document.querySelectorAll('#selector .game-btn').forEach(btn=>{
+      btn.addEventListener('click', function(ev){ /* allow inline onclick */ }, {capture:true, passive:true});
+    });
+  }
+  const sel = document.getElementById('selector');
+  if(sel){
+    const obs = new MutationObserver(()=>{ armButtons(); });
+    obs.observe(sel, { attributes:true, childList:true, subtree:true });
+    armButtons();
+  }
+  // After original choose, enforce chooser as current turn and refresh UI immediately
+  const oc = window.__choose;
+  window.__choose = function(name){
+    const rv = oc ? oc(name) : undefined;
+    try{
+      if(window.__state){
+        const ch = __state.chooserIndex||0;
+        __state.turn = ch;
+        __state.leadIndex = ch;
+        if(typeof setActiveSeat==='function') setActiveSeat(ch);
+        if(typeof renderHands==='function') renderHands();
+        if(__state.players && __state.players[ch] && !__state.players[ch].isHuman){
+          if(typeof maybeBotPlay==='function') maybeBotPlay();
+        }
+      }
+    }catch(e){}
+    document.body.classList.remove('no-dim');
+    return rv;
+  };
+})();
+</script>
+
+
+  <div id="rentzModal" class="modal hidden" style="display:none;">
+    <div class="modal-content">
+      <h2>Rentz — schelet</h2>
+      <p>Interfață lane-uri & reguli ±1 vor fi completate. Poți <strong>refuza Rentz</strong> acum sau continua varianta schelet (fără scor).</p>
+      <div class="modal-actions">
+        <button id="rentzRefuseBtn" class="btn danger">Refuză Rentz</button>
+        <button id="rentzContinueBtn" class="btn">Continuă schelet</button>
+      </div>
+    </div>
+  </div>
+
+
+<script>
+// v0.6.4.4-EDGE inline safe patch: leaderboard emojis + symbols + early-stop
+(function(){
+  function ready(fn){ if(document.readyState!=='loading') setTimeout(fn,0); else document.addEventListener('DOMContentLoaded', function(){ setTimeout(fn,0); }); }
+  function patchLeaderboard(){
+    try{
+      var orig = window.updateLeftScorePanel;
+      window.updateLeftScorePanel = function(){
+        var ul = document.getElementById('scoreList');
+        if(!ul) return;
+        ul.innerHTML = '';
+        var S = window.__state || {};
+        var totals = Array.isArray(S.totals) ? S.totals : [0,0,0,0];
+        var players = S.players || [{name:'J0'},{name:'J1'},{name:'J2'},{name:'J3'}];
+        var rows = [];
+        for(var i=0;i<4;i++){ rows.push({i:i, name:(players[i]&&players[i].name)||('J'+i), total:+(totals[i]||0)}); }
+        rows.sort(function(a,b){ return b.total - a.total; });
+        rows.forEach(function(r, idx){
+          var li = document.createElement('li');
+          var prefix = (idx===0 ? '👑 ' : (idx===1 ? '🥈 ' : (idx===2 ? '🥉 ' : '🐔 ')));
+          li.textContent = prefix + r.name + ' — ' + r.total;
+          ul.appendChild(li);
+        });
+      };
+      try{ window.updateLeftScorePanel(); }catch(e){}
+      var oc = window.__continue;
+      if(typeof oc==='function'){
+        window.__continue = function(){ var rv = oc.apply(this, arguments); try{ window.updateLeftScorePanel(); }catch(e){} return rv; };
+      }
+    }catch(e){}
+  }
+  function ensureSymbolContainers(){
+    try{
+      var seats=[document.querySelector('.seat-bottom'),document.querySelector('.seat-right'),document.querySelector('.seat-top'),document.querySelector('.seat-left')];
+      for(var i=0;i<seats.length;i++){
+        var seat=seats[i]; if(!seat) continue;
+        if(!seat.querySelector('.subgames-line')){
+          var line=document.createElement('div'); line.className='subgames-line';
+          var anchor=seat.querySelector('.pile-badge, .stack, .cards, .hand, .seat-name')||seat;
+          (anchor.parentNode||seat).appendChild(line);
+        }
+      }
+    }catch(e){}
+  }
+  function renderSymbols(){
+    try{
+      var S=window.__state||{};
+      var chosen=S.chosenGames||[new Set(),new Set(),new Set(),new Set()];
+      var map={'C':'Carouri','Q':'Dame','K':'Popa Roșu','10':'10 Trefla','W':'Whist','R':'Rentz','T':'Totale'};
+      var syms=['C','Q','K','10','W','R','T'];
+      var seats=[document.querySelector('.seat-bottom'),document.querySelector('.seat-right'),document.querySelector('.seat-top'),document.querySelector('.seat-left')];
+      for(var i=0;i<4;i++){
+        var seat=seats[i]; if(!seat) continue;
+        var line=seat.querySelector('.subgames-line'); if(!line) continue;
+        var set=chosen[i]||new Set();
+        var avail=syms.filter(function(s){ var g=map[s]; try{ return !(set.has?set.has(g):false); }catch(e){ return true; } });
+        line.innerHTML = avail.map(function(s){ return '<span class="sg" title="'+(map[s]||s)+'">'+s+'</span>'; }).join('');
+      }
+    }catch(e){}
+  }
+  function patchSymbols(){
+    ensureSymbolContainers();
+    renderSymbols();
+    function wrap(fn){ return function(){ var rv = fn && fn.apply(this, arguments); try{ ensureSymbolContainers(); renderSymbols(); }catch(e){} return rv; }; }
+    if(typeof window.__choose==='function') window.__choose = wrap(window.__choose);
+    if(typeof window.__continue==='function') window.__continue = wrap(window.__continue);
+    if(typeof window.__start==='function') window.__start = wrap(window.__start);
+  }
+  function patchEarlyStop(){
+    try{
+      if(window.__EDGE_ESTOP_LOOP) return;
+      window.__EDGE_ESTOP_LOOP = setInterval(function(){
+        try{
+          var S=window.__state; if(!S||!S.gameName||S.roundOver) return;
+          var g=S.gameName, st=S.stats||[];
+          var q=st.reduce(function(a,s){return a+(s.queens||0);},0);
+          var d=st.reduce(function(a,s){return a+(s.diamonds||0);},0);
+          var kh=st.some(function(s){return !!s.kh;});
+          var t10=st.some(function(s){return !!s.t10c;});
+          var stop=(g==='Dame'&&q>=4)||(g==='Carouri'&&d>=8)||(g==='Popa Roșu'&&kh)||(g==='10 Trefla'&&t10);
+          if(stop && typeof window.finalizeRound==='function'){ S.roundOver=true; window.finalizeRound(); }
+        }catch(e){}
+      }, 300);
+    }catch(e){}
+  }
+  ready(function(){ patchLeaderboard(); patchSymbols(); patchEarlyStop(); });
+})();
+</script>
+<script>
+// SAFE patches: leaderboard emojis, symbols under stacks, early stop, Rentz skeleton
+(function(){
+  function ready(fn){ if(document.readyState!=='loading') setTimeout(fn,0); else document.addEventListener('DOMContentLoaded', function(){ setTimeout(fn,0); }); }
+
+  function patchLeaderboard(){
+    try{
+      var orig = window.updateLeftScorePanel;
+      window.updateLeftScorePanel = function(){
+        var ul = document.getElementById('scoreList');
+        if(!ul) return;
+        ul.innerHTML = '';
+        var S = window.__state || {};
+        var totals = Array.isArray(S.totals) ? S.totals : [0,0,0,0];
+        var players = S.players || [{name:'J0'},{name:'J1'},{name:'J2'},{name:'J3'}];
+        var rows = [];
+        for(var i=0;i<4;i++){ rows.push({i:i, name:(players[i]&&players[i].name)||('J'+i), total:+(totals[i]||0)}); }
+        rows.sort(function(a,b){ return b.total - a.total; });
+        rows.forEach(function(r, idx){
+          var li = document.createElement('li');
+          var prefix = (idx===0 ? '👑 ' : (idx===1 ? '🥈 ' : (idx===2 ? '🥉 ' : '🐔 ')));
+          li.textContent = prefix + r.name + ' — ' + r.total;
+          ul.appendChild(li);
+        });
+      };
+      try{ window.updateLeftScorePanel(); }catch(e){}
+      var oc = window.__continue;
+      if(typeof oc==='function'){
+        window.__continue = function(){ var rv = oc.apply(this, arguments); try{ window.updateLeftScorePanel(); }catch(e){} return rv; };
+      }
+    }catch(e){}
+  }
+
+  function ensureSymbolContainers(){
+    try{
+      var seats=[document.querySelector('.seat-bottom'),document.querySelector('.seat-right'),document.querySelector('.seat-top'),document.querySelector('.seat-left')];
+      for(var i=0;i<seats.length;i++){
+        var seat=seats[i]; if(!seat) continue;
+        if(!seat.querySelector('.subgames-line')){
+          var line=document.createElement('div'); line.className='subgames-line';
+          var anchor=seat.querySelector('.pile-badge, .stack, .cards, .hand, .seat-name')||seat;
+          (anchor.parentNode||seat).appendChild(line);
+        }
+      }
+    }catch(e){}
+  }
+  function renderSymbols(){
+    try{
+      var S=window.__state||{};
+      var chosen=S.chosenGames||[new Set(),new Set(),new Set(),new Set()];
+      var map={'C':'Carouri','Q':'Dame','K':'Popa Roșu','10':'10 Trefla','W':'Whist','R':'Rentz','T':'Totale'};
+      var syms=['C','Q','K','10','W','R','T'];
+      var seats=[document.querySelector('.seat-bottom'),document.querySelector('.seat-right'),document.querySelector('.seat-top'),document.querySelector('.seat-left')];
+      for(var i=0;i<4;i++){
+        var seat=seats[i]; if(!seat) continue;
+        var line=seat.querySelector('.subgames-line'); if(!line) continue;
+        var set=chosen[i]||new Set();
+        var avail=syms.filter(function(s){ var g=map[s]; try{ return !(set.has?set.has(g):false); }catch(e){ return true; } });
+        line.innerHTML = avail.map(function(s){ return '<span class="sg" title="'+(map[s]||s)+'">'+s+'</span>'; }).join('');
+      }
+    }catch(e){}
+  }
+  function patchSymbols(){
+    ensureSymbolContainers();
+    renderSymbols();
+    function wrap(fn){ return function(){ var rv = fn && fn.apply(this, arguments); try{ ensureSymbolContainers(); renderSymbols(); }catch(e){} return rv; }; }
+    if(typeof window.__choose==='function') window.__choose = wrap(window.__choose);
+    if(typeof window.__continue==='function') window.__continue = wrap(window.__continue);
+    if(typeof window.__start==='function') window.__start = wrap(window.__start);
+  }
+
+  function patchEarlyStop(){
+    try{
+      if(window.__EDGE_ESTOP_LOOP) return;
+      window.__EDGE_ESTOP_LOOP = setInterval(function(){
+        try{
+          var S=window.__state; if(!S||!S.gameName||S.roundOver) return;
+          var g=S.gameName, st=S.stats||[];
+          var q=st.reduce(function(a,s){return a+(s.queens||0);},0);
+          var d=st.reduce(function(a,s){return a+(s.diamonds||0);},0);
+          var kh=st.some(function(s){return !!s.kh;});
+          var t10=st.some(function(s){return !!s.t10c;});
+          var stop=(g==='Dame'&&q>=4)||(g==='Carouri'&&d>=8)||(g==='Popa Roșu'&&kh)||(g==='10 Trefla'&&t10);
+          if(stop && typeof window.finalizeRound==='function'){ S.roundOver=true; window.finalizeRound(); }
+        }catch(e){}
+      }, 300);
+    }catch(e){}
+  }
+
+  function patchRentzSkeleton(){
+    // Inject modal once
+    try{
+      if(document.getElementById('rentzModal')) return;
+      var wrap = document.createElement('div');
+      wrap.innerHTML = [
+        '<div id="rentzModal" class="modal hidden" style="display:none;">',
+        '  <div class="modal-content">',
+        '    <h2>Rentz — schelet</h2>',
+        '    <p>Interfața lane-uri & regulile ±1 urmează în pasul următor. Poți <strong>refuza</strong> sau <strong>finaliza</strong> (schelet) acum.</p>',
+        '    <div class="lanes">',
+        '      <div class="lane">Lane 1</div>',
+        '      <div class="lane">Lane 2</div>',
+        '      <div class="lane">Lane 3</div>',
+        '      <div class="lane">Lane 4</div>',
+        '    </div>',
+        '    <div class="modal-actions">',
+        '      <button id="rentzRefuseBtn" class="btn danger">Refuză Rentz</button>',
+        '      <button id="rentzFinishBtn" class="btn">Finalizează (schelet)</button>',
+        '    </div>',
+        '  </div>',
+        '</div>'
+      ].join('');
+      document.body.appendChild(wrap.firstChild);
+    }catch(e){}
+    try{
+      var oc = window.__choose;
+      if(typeof oc!=='function') return;
+      window.__choose = function(name){
+        if(name==='Rentz'){
+          try{
+            var sel = document.getElementById('selector');
+            if(sel){ sel.classList.add('hidden'); sel.style.display='none'; }
+            var m = document.getElementById('rentzModal');
+            if(m){ m.classList.remove('hidden'); m.style.display='flex'; }
+            var ref = document.getElementById('rentzRefuseBtn');
+            var fin = document.getElementById('rentzFinishBtn');
+            if(ref){
+              ref.onclick = function(){
+                try{
+                  if(m){ m.classList.add('hidden'); m.style.display='none'; }
+                  var S=window.__state||{}; var ch=S.chooserIndex||0;
+                  if(S.chosenGames && S.chosenGames[ch] && S.chosenGames[ch].add){ S.chosenGames[ch].add('Rentz'); }
+                }catch(e){}
+                if(typeof window.__continue==='function') window.__continue();
+              };
+            }
+            if(fin){
+              fin.onclick = function(){
+                try{ if(m){ m.classList.add('hidden'); m.style.display='none'; } }catch(e){}
+                if(typeof window.finalizeRound==='function'){ window.finalizeRound(); }
+              };
+            }
+          }catch(e){}
+          return;
+        }
+        return oc.apply(this, arguments);
+      };
+    }catch(e){}
+  }
+
+  ready(function(){ 
+    patchLeaderboard(); 
+    patchSymbols(); 
+    patchEarlyStop(); 
+    patchRentzSkeleton(); 
+  });
+})();
+</script>
+
+<script>
+(function(){
+  function ready(fn){ if(document.readyState!=='loading') setTimeout(fn,0); else document.addEventListener('DOMContentLoaded', function(){ setTimeout(fn,0); }); }
+  function minRankForPlayers(n){
+    if(n<=3) return '9';
+    if(n===4) return '7';
+    if(n===5) return '5';
+    return '3'; // 6 players
+  }
+  function countCapete(hand, minRank){
+    if(!hand) return 0;
+    var n=0;
+    for(var i=0;i<hand.length;i++){
+      var r = hand[i].rank;
+      if(r==='A' || r===minRank) n++;
+    }
+    return n;
+  }
+  function showToast(text){
+    var t = document.createElement('div');
+    t.className = 'rentz-toast';
+    t.textContent = text;
+    document.body.appendChild(t);
+    setTimeout(function(){ t.remove(); }, 1800);
+  }
+  function redealSameChooser(){
+    try{
+      var S = window.__state||{};
+      if(typeof window.deal==='function') window.deal();
+      if(typeof window.renderHands==='function') window.renderHands();
+      var ch = S.chooserIndex||0;
+      S.turn = ch; S.leadIndex = ch;
+      if(typeof window.setActiveSeat==='function') window.setActiveSeat(ch);
+      if(typeof window.populateSelector==='function') window.populateSelector();
+      var sel = document.getElementById('selector'); if(sel){ sel.classList.remove('hidden'); sel.style.display='flex'; }
+    }catch(e){}
+  }
+  function openRentzSkeleton(){
+    // Modal minimal (no refuse button here)
+    var m = document.getElementById('rentzModal');
+    if(!m){
+      var wrap = document.createElement('div');
+      wrap.innerHTML = '<div id="rentzModal" class="modal hidden" style="display:none;"><div class="modal-content"><h2>Rentz — schelet</h2><p>Regulile (lane-uri, ±1, A bonus, skip) vor fi implementate în pasul următor.</p><div class="modal-actions"><button id="rentzCont" class="btn">Continuă schelet</button></div></div></div>';
+      document.body.appendChild(wrap.firstChild);
+      m = document.getElementById('rentzModal');
+    }else{
+      var mc = m.querySelector('.modal-content');
+      if(mc) mc.innerHTML = '<h2>Rentz — schelet</h2><p>Regulile (lane-uri, ±1, A bonus, skip) vor fi implementate în pasul următor.</p><div class="modal-actions"><button id="rentzCont" class="btn">Continuă schelet</button></div>';
+    }
+    m.classList.remove('hidden'); m.style.display='flex';
+    var btn = document.getElementById('rentzCont');
+    if(btn){
+      btn.onclick = function(){
+        m.classList.add('hidden'); m.style.display='none';
+        if(typeof window.finalizeRound==='function') window.finalizeRound();
+      };
+    }
+  }
+  function handleRentzSelection(){
+    try{
+      var S = window.__state||{};
+      var n = (S.players && S.players.length) || 4;
+      var minR = minRankForPlayers(n);
+      var players = S.players||[];
+      var refuser = -1, maxCap = -1;
+      for(var i=0;i<n;i++){
+        var cnt = countCapete(players[i] && players[i].hand, minR);
+        if(cnt>=4 && cnt>maxCap){ maxCap = cnt; refuser = i; }
+      }
+      if(refuser>=0){
+        var name = (players[refuser] && players[refuser].name) || ('J'+refuser);
+        showToast('Rentz a fost refuzat. ' + name + ' are ' + maxCap + ' capete.');
+        redealSameChooser();
+        return;
+      }
+      // nobody can refuse: proceed with skeleton (no "Refuză")
+      openRentzSkeleton();
+    }catch(e){ openRentzSkeleton(); }
+  }
+  function patch(){
+    // 1) Intercept selector clicks on 'Rentz' before legacy popup
+    var sel = document.getElementById('selector');
+    if(sel){
+      sel.addEventListener('click', function(e){
+        var t = e.target;
+        if(!t) return;
+        var txt = (t.textContent||'').trim();
+        if(txt==='Rentz'){
+          e.stopImmediatePropagation(); e.preventDefault();
+          sel.classList.add('hidden'); sel.style.display='none';
+          handleRentzSelection();
+        }
+      }, true); // capture-first
+    }
+    // 2) Override __choose to ensure programmatic path also uses new logic
+    var oc = window.__choose;
+    if(typeof oc === 'function'){
+      window.__choose = function(name){
+        if(name==='Rentz'){ handleRentzSelection(); return; }
+        return oc.apply(this, arguments);
+      };
+    }
+  }
+  ready(patch);
+})();
+</script>
+
+
+<!-- Rentz Overlay (iframe) v1.0 -->
+<div id="rentzOverlay" class="rentz-overlay" hidden aria-hidden="true">
+  <div class="rentz-box">
+    <iframe id="rentzFrame" src="rentz-embed.html" frameborder="0" allow="clipboard-read; clipboard-write"></iframe>
+  </div>
+</div>
+
+
+<script src="assets/rentz-overlay.js" defer></script>
+
+<script src="assets/rentz-overlay-v310-nc.js?v=1755799631" defer></script>
+
+<script>
+// Minimal round summary renderer for Rentz results
+function showRoundSummary(opts){
+  try{
+    var title = (opts && opts.title) ? opts.title : 'Rezumat rundă';
+    var scores = (opts && opts.scores) ? opts.scores : (window.__state && window.__state.lastScores) || [];
+    var S = window.__state || {};
+    var players = S.players || [];
+    var modal = document.getElementById('roundSummary');
+    var h2 = document.getElementById('roundSummaryTitle');
+    var tbl = document.getElementById('roundSummaryTable');
+    if(h2) h2.textContent = title + ' — rezultate';
+    if(tbl){
+      tbl.innerHTML='';
+      var wrap = document.createElement('div'); wrap.className='rows';
+      for(var i=0;i<(players.length||scores.length||4); i++){
+        var row = document.createElement('div'); row.className='row simple';
+        var name = (players[i] && players[i].name) ? players[i].name : ('Juc ' + (i+1));
+        var sc = Number(scores[i]||0);
+        row.innerHTML = '<div class="cell name">'+name+'</div><div class="cell score">'+(sc>=0?('+'+sc):sc)+'</div>';
+        wrap.appendChild(row);
+      }
+      tbl.appendChild(wrap);
+    }
+    if(modal){ modal.classList.remove('hidden'); modal.style.display='flex'; }
+  }catch(e){ console && console.warn && console.warn('showRoundSummary failed', e); }
+}
+</script>
+
+
+<script>
+// === Bot name randomizer (assign once per match) ===
+window.__footballersRO = ['Gheorghe Hagi', 'Gică Popescu', 'Adrian Mutu', 'Cristian Chivu', 'Dan Petrescu', 'Ilie Dumitrescu', 'Florin Răducioiu', 'Marius Lăcătuș', 'Dorinel Munteanu', 'Viorel Moldovan', 'Ionel Ganea', 'Adrian Ilie', 'Cosmin Contra', 'Bogdan Stelea', 'Ciprian Tătărușanu', 'Bogdan Lobonț', 'Răzvan Raț', 'Mirel Rădoi', 'Cristi Săpunaru', 'Ciprian Marica', 'Claudiu Keșerü', 'Nicolae Stanciu', 'Ianis Hagi', 'Vlad Chiricheș', 'Alexandru Maxim', 'Dennis Man', 'Florinel Coman', 'Vali Mihăilă', 'Răzvan Marin', 'Costel Gâlcă', 'Daniel Prodan', 'Paul Codrea', 'Florentin Petre', 'Florin Cernat', 'Ioan Ovidiu Sabău', 'Ioan Lupescu', 'Gabi Balint', 'Miodrag Belodedici', 'Helmuth Duckadam', 'Iosif Rotariu', 'Rodion Cămătaru', 'Daniel Pancu', 'Marian Aliuță', 'Bănel Nicoliță', 'Nicolae Dică', 'George Ogăraru', 'George Țucudean', 'Cosmin Moți', 'Adrian Mihalcea', 'Răzvan Cociș', 'Sorin Cârțu', 'Mircea Rednic', 'Ioan Andone', 'Dănuț Lupu', 'Gabi Tamaș', 'Lucian Sânmărtean', 'Gabriel Torje', 'Deian Sorescu', 'Andrei Ivan', 'Andrei Burcă', 'Florin Andone', 'Alexandru Mitriță', 'Ștefan Radu', 'Alexandru Bourceanu', 'Ovidiu Hoban', 'Alexandru Chipciu', 'Denis Alibec', 'George Pușcaș', 'Alexandru Băluță', 'Iulian Cristea', 'Mihai Pintilii', 'Ovidiu Herea', 'Vasile Maftei', 'Vasile Miriuță', 'Costin Lazăr', 'Petre Marin', 'Florin Lovin', 'Valeriu Răchită', 'Marius Niculae', 'Sergiu Hanca', 'Alexandru Tudorie', 'Ionuț Nedelcearu', 'Radu Ștefan', 'Robert Niță', 'Costel Pantilimon', 'Răzvan Lucescu', 'Marcel Răducanu', 'Rică Răducanu', 'Cornel Dinu'];
+function __sampleNamesRO(count, exclude){
+  exclude = new Set(exclude||[]);
+  const pool = window.__footballersRO.filter(n=>!exclude.has(n));
+  const out = [];
+  while(out.length < count && pool.length){
+    const i = Math.floor(Math.random()*pool.length);
+    out.push(pool.splice(i,1)[0]);
+  }
+  return out;
+}
+(function(){
+  function assignOnce(){
+    try{
+      var S = (window.__state || window.state || {});
+      if(!S.players || !S.players.length) return false;
+      if(S.__botNamesLocked) return true;
+      var botIdx=[], exclude=[];
+      for(var i=0;i<S.players.length;i++){ 
+        var p=S.players[i]||{};
+        var isHuman = !!(p.isHuman || p.human || p.type==='human' || /\btu\b/i.test((p.name||'')));
+        if(isHuman) exclude.push(p.name||''); else botIdx.push(i);
+      }
+      var names = __sampleNamesRO(botIdx.length, exclude);
+      for(var k=0;k<botIdx.length;k++){ var idx=botIdx[k]; if(S.players[idx]) S.players[idx].name = names[k] || S.players[idx].name; }
+      S.__botNamesLocked = true;
+      if(typeof window.refreshSeatNames==='function') window.refreshSeatNames();
+      return true;
+    }catch(e){ return false; }
+  }
+  // poll after Start joc initializes players
+  var tries = 0;
+  var iv = setInterval(function(){
+    tries++;
+    if(assignOnce() || tries>200) clearInterval(iv);
+  }, 120);
+})();
+</script>
+
+
+<script>
+function refreshSeatNames(){
+  try{
+    var S = window.__state || {};
+    var seats = [
+      document.querySelector('.seat-bottom .seat-name'),
+      document.querySelector('.seat-right .seat-name'),
+      document.querySelector('.seat-top .seat-name'),
+      document.querySelector('.seat-left .seat-name'),
+    ];
+    for(var i=0;i<4;i++){
+      if(seats[i] && S.players && S.players[i]){
+        seats[i].textContent = S.players[i].name || seats[i].textContent;
+      }
+    }
+    if(typeof updateLeftScorePanel==='function') updateLeftScorePanel();
+  }catch(e){ console && console.warn && console.warn('refreshSeatNames failed', e); }
+}
+</script>
+
+<script>
+// --- DEBUG: one-click verify that bot AI can pick Rentz when it's the only game left ---
+(function(){
+  function addBtn(){
+    if (document.getElementById('dbg-rentz-ai')) return;
+    var b = document.createElement('button');
+    b.id = 'dbg-rentz-ai';
+    b.textContent = '🧪 Test Rentz AI';
+    Object.assign(b.style, {
+      position:'fixed', top:'10px', left:'10px', zIndex:9999,
+      background:'#1b1f28', color:'#fff', border:'1px solid #2a2f3a',
+      borderRadius:'10px', padding:'6px 10px', fontSize:'12px', cursor:'pointer', opacity:.85
+    });
+    b.onclick = function(){
+      try{
+        const S = window.__state || (window.__state = {});
+        const N = (S.players && S.players.length) || 4;
+        // choose a bot seat (if 0 == you)
+        S.chooserIndex = (S.chooserIndex===0 ? 1 : (S.chooserIndex||1));
+        // mark all except Rentz as already played for that chooser
+        const chooser = S.chooserIndex;
+        const all = ['Carouri','Dame','Popa Roșu','10 Trefla','Whist','Totale','Rentz'];
+        S.chosenGames = S.chosenGames || [new Set(), new Set(), new Set(), new Set()];
+        all.forEach(g => { if(g!=='Rentz') S.chosenGames[chooser].add(g); });
+        // ask the existing AI
+        const pick = (typeof chooseGameForBot==='function') ? chooseGameForBot(S) : '(!) chooseGameForBot missing';
+        alert('AI pick (should be Rentz): ' + pick);
+      }catch(e){ alert('Test error: '+e); }
+    };
+    document.body.appendChild(b);
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', addBtn); else addBtn();
+
+  // Auto-run via ?debug=rentz
+  const params = new URLSearchParams(location.search);
+  if (params.get('debug') === 'rentz') {
+    setTimeout(()=>document.getElementById('dbg-rentz-ai')?.click(), 600);
+  }
+})();
+</script>
+
+
+<script>
+// expose bot chooser for debug
+try{ if (typeof chooseGameForBot==='function') window.chooseGameForBot = chooseGameForBot; }catch(_){}
+</script>
+
+
+<!-- Debug helper v2 -->
+<script>
+(function(){
+  function ensureFallback(){
+    if(!window.__rentz_fallback_ai){
+      window.__rentz_fallback_ai = function(state){
+        try{
+          const chooser = state.chooserIndex ?? 0;
+          const all = ['Carouri','Dame','Popa Roșu','10 Trefla','Whist','Totale','Rentz'];
+          const chosen = (state.chosenGames && state.chosenGames[chooser]) || new Set();
+          const has = (g)=> (typeof chosen.has==='function') ? chosen.has(g) : !!chosen[g];
+          const allowed = all.filter(g=>!has(g));
+          if (allowed.length===0) return 'Rentz';
+          if (allowed.length===1) return allowed[0];
+          return allowed[Math.floor(Math.random()*allowed.length)];
+        }catch(e){ return 'Rentz'; }
+      };
+    }
+  }
+  function addBtn(){
+    if (document.getElementById('dbg-rentz-ai-v2')) return;
+    var b = document.createElement('button');
+    b.id = 'dbg-rentz-ai-v2';
+    b.textContent = 'Test Rentz AI v2';
+    Object.assign(b.style,{position:'fixed',top:'40px',left:'10px',zIndex:9999,
+      background:'#16a34a',color:'#fff',border:'0',borderRadius:'10px',padding:'6px 10px',
+      fontSize:'12px',cursor:'pointer',opacity:.95,boxShadow:'0 2px 6px rgba(0,0,0,.3)'});
+    b.onclick = function(){
+      try{
+        ensureFallback();
+        const S = window.__state || (window.__state = {});
+        S.players = S.players || [{},{},{},{}];
+        S.chooserIndex = 1; // bot seat
+        const chooser = S.chooserIndex;
+        const all = ['Carouri','Dame','Popa Roșu','10 Trefla','Whist','Totale','Rentz'];
+        S.chosenGames = S.chosenGames || [new Set(), new Set(), new Set(), new Set()];
+        for(const g of all) if(g!=='Rentz') S.chosenGames[chooser].add(g);
+        var used = 'gameAI';
+        var fn = window.chooseGameForBot;
+        if (typeof fn !== 'function'){ used = 'fallback'; fn = window.__rentz_fallback_ai; }
+        const pick = fn(S);
+        alert('AI pick (should be Rentz): ' + pick + '  ['+used+']');
+      }catch(e){ alert('Test error: '+e); }
+    };
+    document.body.appendChild(b);
+  }
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', addBtn); else addBtn();
+})();
+</script>
+
+
+<!-- A11: Production fix for AI picking Rentz (no QA UI).
+     Behavior:
+       - If a bot has 6 games marked as played and "Rentz" NOT among them → pick "Rentz".
+       - Otherwise, if bot still hasn't played Rentz → small chance to pick "Rentz" randomly (0.25).
+       - Fallback cleanly to original AI if present; otherwise safe default "Whist".
+-->
+<script>
+(function(){
+  const SAFE_DEFAULT = 'Whist';
+  function shouldPickRentzNow(state){
+    try{
+      const S = state || window.__state || {};
+      const idx = (typeof S.chooserIndex==='number') ? S.chooserIndex : 0;
+      if (idx === 0) return false; // human
+      const chosenList = (S.chosenGames && S.chosenGames[idx]) ? S.chosenGames[idx] : null;
+      const size = chosenList && typeof chosenList.size==='number' ? chosenList.size : (chosenList ? chosenList.length : 0);
+      const hasRentz = !!(chosenList && (chosenList.has ? chosenList.has('Rentz') : chosenList.indexOf && chosenList.indexOf('Rentz')>=0));
+      // If 6 already chosen and Rentz not yet → only Rentz left.
+      if (size >= 6 && !hasRentz) return true;
+      // Otherwise sometimes choose Rentz randomly to prove path is valid
+      if (!hasRentz && Math.random() < 0.25) return true;
+    }catch(e){}
+    return false;
+  }
+
+  const origAI = window.chooseGameForBot;
+  window.chooseGameForBot = function(state){
+    try{
+      if (shouldPickRentzNow(state)) return 'Rentz';
+    }catch(e){}
+    if (typeof origAI === 'function'){
+      try { return origAI.apply(this, arguments); }
+      catch(e){}
+    }
+    return SAFE_DEFAULT;
+  };
+})();
+</script>
+
+
+<!-- A12: Remove any leftover QA/test UI badges/buttons/panels -->
+<script>
+(function(){
+  function removeNodesByText(phrases){
+    const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_ELEMENT, null);
+    const toRemove = [];
+    while (walker.nextNode()){
+      const el = walker.currentNode;
+      const txt = (el.textContent||'').toLowerCase();
+      for (const p of phrases){
+        if (txt.includes(p)){
+          toRemove.push(el);
+          break;
+        }
+      }
+    }
+    for (const el of toRemove){
+      if (el && el.parentNode) {
+        try { el.parentNode.removeChild(el); } catch(e){}
+      }
+    }
+  }
+  const phrases = [
+    'test rentz', 'test rentz ai', 'test rentz ai v2', 
+    'force rentz', 'qa ', 'debug ', 'no action required'
+  ].map(s=>s.toLowerCase());
+  function sweep(){
+    removeNodesByText(phrases);
+  }
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', sweep);
+  } else {
+    sweep();
+  }
+  const mo = new MutationObserver(()=>sweep());
+  mo.observe(document.body, {childList:true, subtree:true});
+})();
+</script>
+
+
+<!-- A13: Keep player's chosen name consistent everywhere -->
+<script>
+(function(){
+  const DEFAULT_NAME = 'Domnul Dan';
+  const LS_KEY = 'rentz.playerName';
+
+  function getInputEl() {
+    // try common selectors around the start modal
+    const inputs = Array.from(document.querySelectorAll('input, .input, [contenteditable="true"]'));
+    // choose the longest text input visible
+    for (const el of inputs) {
+      const style = getComputedStyle(el);
+      if (style.display === 'none' || style.visibility === 'hidden') continue;
+      if (el.tagName === 'INPUT' && (el.type || '').toLowerCase() === 'text') return el;
+    }
+    return null;
+  }
+
+  function readChosenName() {
+    try {
+      const fromLS = localStorage.getItem(LS_KEY);
+      if (fromLS && fromLS.trim()) return fromLS.trim();
+    } catch(e){}
+    return null;
+  }
+
+  function writeChosenName(name){
+    try { localStorage.setItem(LS_KEY, name || DEFAULT_NAME); } catch(e){}
+  }
+
+  function setStateName(name){
+    const S = window.__state || (window.__state = {});
+    try {
+      if (Array.isArray(S.players) && S.players[0]) S.players[0].name = name;
+      if (Array.isArray(S.playerNames) && S.playerNames[0] != null) S.playerNames[0] = name;
+      S.meName = name;
+    } catch(e){}
+  }
+
+  function replaceTextEverywhere(from, to){
+    if (!from || from === to) return;
+    const walk = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, null);
+    const hits = [];
+    while (walk.nextNode()) {
+      const n = walk.currentNode;
+      if (!n.nodeValue) continue;
+      // replace whole or partial matches safely
+      if (n.nodeValue.indexOf(from) !== -1) hits.push(n);
+    }
+    for (const n of hits) {
+      try { n.nodeValue = n.nodeValue.split(from).join(to); } catch(e){}
+    }
+  }
+
+  let oldName = DEFAULT_NAME;
+  let chosen = readChosenName() || null;
+
+  // Prefill input on first screen if we stored a name before
+  document.addEventListener('DOMContentLoaded', () => {
+    const input = getInputEl();
+    if (input && chosen) {
+      try { input.value = chosen; } catch(e){}
+    }
+  });
+
+  // Hook Start button
+  function hookStart(){
+    const buttons = Array.from(document.querySelectorAll('button, .btn'));
+    const startBtn = buttons.find(b => /start\s*joc/i.test(b.textContent||''));
+    if (!startBtn) return;
+    const input = getInputEl();
+    if (!input) return;
+
+    if (!startBtn.__patched) {
+      startBtn.__patched = true;
+      startBtn.addEventListener('click', () => {
+        const name = (input.value || '').trim() || DEFAULT_NAME;
+        chosen = name;
+        writeChosenName(name);
+        setStateName(name);
+        // one-shot replace after start
+        replaceTextEverywhere(oldName, name);
+      }, {capture:true});
+    }
+  }
+
+  // Continuous sync via MutationObserver (scoreboard / summary modal re-renders)
+  const mo = new MutationObserver(() => {
+    const name = chosen || readChosenName() || DEFAULT_NAME;
+    replaceTextEverywhere(oldName, name);
+    setStateName(name);
+    hookStart();
+  });
+  mo.observe(document.documentElement, {subtree:true, childList:true});
+
+  // initial
+  hookStart();
+})();
+</script>
+
+  <script src="./score-align-override.js"></script>
+
+<!-- === CHAT PANEL (inline) === -->
+<style id="rentz-chat-style">
+  .chat-panel{
+    position:fixed; right:24px; bottom:24px;
+    width:min(380px, 32vw); height:min(280px, 38vh);
+    background:rgba(0,0,0,.58);
+    border:1px solid rgba(255,255,255,.10);
+    border-radius:12px;
+    display:flex; flex-direction:column;
+    z-index:200000;
+    pointer-events:auto !important;
+    box-shadow:0 8px 24px rgba(0,0,0,.35);
+    backdrop-filter:saturate(120%) blur(2px);
+    color:inherit;
+  }
+  .chat-panel, .chat-panel *{ pointer-events:auto !important; }
+  .chat-header{ display:flex; align-items:center; justify-content:space-between; gap:8px;
+    padding:8px 10px; font-size:12px; font-weight:600;
+    border-bottom:1px solid rgba(255,255,255,.08); opacity:.9; }
+  .chat-header .title{ display:flex; align-items:center; gap:8px; }
+  .chat-header .actions{ display:flex; gap:6px; }
+  .chat-header .actions button{ background:transparent; border:0; color:inherit; opacity:.85; cursor:pointer; font-size:14px; padding:2px 6px; border-radius:8px; }
+  .chat-header .actions button:hover{ background:rgba(255,255,255,.08); opacity:1; }
+  .chat-messages{ flex:1; padding:8px 10px; overflow-y:auto;
+    display:flex; flex-direction:column; gap:6px; font-size:12px; line-height:1.35; }
+  .chat-messages .message{ display:flex; gap:6px; align-items:baseline; }
+  .chat-messages .author{ opacity:.9; font-weight:600; }
+  .chat-messages .text{ opacity:.95; flex:1; }
+  .chat-messages .time{ opacity:.55; font-size:11px; margin-left:auto; }
+  .chat-input{ display:flex; gap:6px; padding:8px 10px; border-top:1px solid rgba(255,255,255,.08); }
+  .chat-input input{ flex:1; padding:8px 10px; border-radius:10px;
+    background:rgba(255,255,255,.10); border:1px solid rgba(255,255,255,.16);
+    color:inherit; outline:none; }
+  .chat-input button{ padding:8px 10px; border-radius:10px; background:rgba(255,255,255,.15);
+    border:1px solid rgba(255,255,255,.22); color:inherit; font-weight:600; cursor:pointer; }
+  .chat-panel.minimized{ height:auto; width:auto; }
+  .chat-panel.minimized .chat-messages,
+  .chat-panel.minimized .chat-input{ display:none; }
+  @media (max-width: 900px){
+    .chat-panel{ width: min(92vw, 380px); height: 32vh; right: 12px; bottom: 12px; }
+  }
+</style>
+<div id="chatPanel" class="chat-panel" role="region" aria-label="Chat jucători">
+  <div class="chat-header">
+    <div class="title">💬 Chat</div>
+    <div class="actions">
+      <button id="chatClear" title="Șterge chat">🗑️</button>
+      <button id="chatToggle" title="Minimize / Restore">▾</button>
+    </div>
+  </div>
+  <div class="chat-messages" id="chatList" aria-live="polite"></div>
+  <div class="chat-input">
+    <input id="chatInput" type="text" placeholder="Scrie un mesaj și apasă Enter…" autocomplete="off" />
+    <button id="chatSend" type="button">Trimite</button>
+  </div>
+</div>
+<script id="rentz-chat-logic">
+(function(){
+  var KEY_MSGS = 'rentz_chat_v1';
+  var KEY_MIN  = 'rentz_chat_min';
+
+  function now(){ var d=new Date(); return d.toLocaleTimeString('ro-RO',{hour:'2-digit', minute:'2-digit'}); }
+  function load(){ try{ return JSON.parse(localStorage.getItem(KEY_MSGS)||'[]'); }catch(e){ return []; } }
+  function save(arr){ try{ localStorage.setItem(KEY_MSGS, JSON.stringify(arr.slice(-200))); }catch(e){} }
+  function isMin(){ try{ return localStorage.getItem(KEY_MIN)==='1'; }catch(e){ return false; } }
+  function setMin(v){ try{ localStorage.setItem(KEY_MIN, v?'1':'0'); }catch(e){} }
+
+  function meName(){
+    try{
+      var st=window.__state||{}; var ps=st.players||[];
+      for(var i=0;i<ps.length;i++){ if(ps[i] && ps[i].isHuman) return ps[i].name||'Tu'; }
+      return (ps[0] && ps[0].name) ? ps[0].name : 'Tu';
+    }catch(e){ return 'Tu'; }
+  }
+  function addRow(m, persist){
+    var list=document.getElementById('chatList'); if(!list) return;
+    var row=document.createElement('div'); row.className='message';
+    var a=document.createElement('span'); a.className='author'; a.textContent=m.author+':';
+    var t=document.createElement('span'); t.className='text'; t.textContent=' '+m.text;
+    var tm=document.createElement('span'); tm.className='time'; tm.textContent=m.time||now();
+    row.appendChild(a); row.appendChild(t); row.appendChild(tm);
+    list.appendChild(row); list.scrollTop=list.scrollHeight;
+    if(persist){ var arr=load(); arr.push(m); save(arr); }
+  }
+  function render(){
+    var arr = load(); var list=document.getElementById('chatList'); if(!list) return;
+    list.innerHTML=''; for(var i=0;i<arr.length;i++){ addRow(arr[i], false); }
+  }
+  function clearChat(){
+    try{ localStorage.removeItem(KEY_MSGS); }catch(e){}
+    var list=document.getElementById('chatList'); if(list) list.innerHTML='';
+  }
+  function toggleMin(){
+    var root=document.getElementById('chatPanel'); if(!root) return;
+    var minimized = root.classList.toggle('minimized');
+    setMin(minimized);
+  }
+  function send(){
+    var input=document.getElementById('chatInput'); if(!input) return;
+    var text=(input.value||'').trim(); if(!text) return;
+    addRow({author:meName(), text:text, time:now()}, true); input.value='';
+  }
+
+  // Init immediately (markup is already present)
+  (function init(){
+    try{
+      render();
+      if(isMin()) { var root=document.getElementById('chatPanel'); if(root) root.classList.add('minimized'); }
+      var sendBtn=document.getElementById('chatSend'); if(sendBtn) sendBtn.addEventListener('click', send);
+      var input=document.getElementById('chatInput'); if(input) input.addEventListener('keydown', function(e){ if(e.key==='Enter'){ e.preventDefault(); send(); }});
+      var tgl=document.getElementById('chatToggle'); if(tgl) tgl.addEventListener('click', toggleMin);
+      var clr=document.getElementById('chatClear'); if(clr) clr.addEventListener('click', clearChat);
+    }catch(e){}
+  })();
+
+  // Optional API
+  window.chatPost = function(text, author){ addRow({author:author||'Sistem', text:text, time:now()}, true); };
+})();
+</script>
+<!-- === /CHAT PANEL === -->
+
+</body>
+</html>

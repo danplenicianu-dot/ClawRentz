@@ -339,6 +339,18 @@ window.updateLeftScorePanel = updateLeftScorePanel;
       const chooser = state.chooserIndex||0;
       const set = state.chosenGames[chooser];
       set.add(game);
+
+      // Auto-dismiss after 3s, then continue automatically (no button)
+      try{
+        if(window.__rsAutoTimer) clearTimeout(window.__rsAutoTimer);
+        window.__rsAutoTimer = setTimeout(()=>{
+          try{
+            const m = document.getElementById('roundSummary');
+            if(m){ m.classList.add('hidden'); m.style.display='none'; }
+          }catch(e){}
+          try{ if(typeof window.__continue==='function') window.__continue(); }catch(e){}
+        }, 3000);
+      }catch(e){}
     }
     window.__continue = function(){
       state.roundOver=false;
@@ -564,9 +576,7 @@ window.updateLeftScorePanel = updateLeftScorePanel;
       <div class="modal-card">
         <h2 id="roundSummaryTitle">Rezumat runda</h2>
         <div id="roundSummaryTable" class="summary-table"></div>
-        <div class="modal-actions">
-          <button class="game-btn primary" onclick="window.__continue()">Continuă</button>
-        </div>
+        <div class="modal-actions" style="display:none"></div>
       </div>
     </div>
     
@@ -1113,6 +1123,18 @@ function showRoundSummary(opts){
       tbl.appendChild(wrap);
     }
     if(modal){ modal.classList.remove('hidden'); modal.style.display='flex'; }
+
+    // Auto-dismiss after 3s, then continue automatically (no button)
+    try{
+      if(window.__rsAutoTimer) clearTimeout(window.__rsAutoTimer);
+      window.__rsAutoTimer = setTimeout(()=>{
+        try{
+          const m = document.getElementById('roundSummary');
+          if(m){ m.classList.add('hidden'); m.style.display='none'; }
+        }catch(e){}
+        try{ if(typeof window.__continue==='function') window.__continue(); }catch(e){}
+      }, 3000);
+    }catch(e){}
   }catch(e){ console && console.warn && console.warn('showRoundSummary failed', e); }
 }
 </script>

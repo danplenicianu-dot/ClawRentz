@@ -26,13 +26,42 @@
 
   function log(...a){ console.log('[mp]', ...a); }
 
+  function buildRoomLink(code){
+    try{
+      const u = new URL(location.href);
+      // keep cache-busters like ?v=, but set/overwrite room param
+      u.searchParams.set('room', String(code));
+      return u.toString();
+    }catch(e){
+      return location.href;
+    }
+  }
+
+  async function shareRoom(code){
+    const url = buildRoomLink(code);
+    const text = `Rentz MP – intră cu codul ${code}: ${url}`;
+    try{
+      if(navigator.share){
+        await navigator.share({ title:'Rentz MP', text, url });
+        return;
+      }
+    }catch(e){}
+
+    // WhatsApp fallback (works on mobile; on desktop opens WhatsApp Web)
+    const wa = 'https://wa.me/?text=' + encodeURIComponent(text);
+    try{ window.open(wa, '_blank'); }catch(e){ location.href = wa; }
+
+    // best-effort clipboard
+    try{ navigator.clipboard && navigator.clipboard.writeText && navigator.clipboard.writeText(url); }catch(e){}
+  }
+
   function overlay(){
     const el = document.createElement('div');
     el.id = 'mpOverlay';
     el.style.cssText = `position:fixed;inset:0;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;z-index:9999;`;
     el.innerHTML = `
       <div style="background:#111;color:#fff;border:1px solid rgba(255,255,255,.12);border-radius:16px;padding:18px;min-width:320px;max-width:92vw;font-family:system-ui">
-        <div style="font-weight:700;font-size:18px;margin-bottom:10px;">Rentz Multiplayer (local)</div>
+        <div style="font-weight:700;font-size:18px;margin-bottom:10px;">Rentz Multiplayer</div>
         <div style="font-size:13px;opacity:.85;margin-bottom:12px;">Fără cont • 4 prieteni • cod cameră</div>
 
         <label style="display:block;font-size:12px;opacity:.8">Nume</label>
@@ -41,14 +70,18 @@
         <div style="display:flex;gap:8px;align-items:flex-end;">
           <div style="flex:1">
             <label style="display:block;font-size:12px;opacity:.8">Cod cameră</label>
-            <input id="mpCode" style="width:100%;padding:10px;border-radius:10px;border:1px solid rgba(255,255,255,.18);background:#0b0b0b;color:#fff;margin-top:6px" placeholder="ex: ABCDE" />
+            <input id="mpCode" style="width:100%;padding:10px;border-radius:10px;border:1px solid rgba(255,255,255,.18);background:#0b0b0b;color:#fff;margin-top:6px" placeholder="ex: 123456" inputmode="numeric" />
           </div>
           <button id="mpCreate" style="padding:10px 12px;border-radius:10px;border:0;background:#2d6cdf;color:#fff;font-weight:700;cursor:pointer">Creează</button>
           <button id="mpJoin" style="padding:10px 12px;border-radius:10px;border:0;background:#333;color:#fff;font-weight:700;cursor:pointer">Intră</button>
         </div>
 
         <div id="mpStatus" style="margin-top:12px;font-size:12px;opacity:.9"></div>
-        <div style="margin-top:10px;font-size:12px;opacity:.7">Rulează serverul: <code>node server.js</code> și apoi deschide 4 tab-uri.</div>
+        <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+          <button id="mpShare" style="padding:9px 12px;border-radius:10px;border:1px solid rgba(255,255,255,.15);background:#1f2937;color:#fff;font-weight:700;cursor:pointer;display:none;">Partajează pe WhatsApp</button>
+          <button id="mpCopy" style="padding:9px 12px;border-radius:10px;border:1px solid rgba(255,255,255,.15);background:#0b0b0b;color:#fff;font-weight:700;cursor:pointer;display:none;">Copiază link</button>
+        </div>
+        <div style="margin-top:10px;font-size:12px;opacity:.65">Tip: poți da și link direct cu camera (are parametru <code>?room=</code>).</div>
       </div>
     `;
     document.body.appendChild(el);
@@ -67,14 +100,34 @@
       setStatus('Se creează camera...');
     };
 
+    // prefill room code from URL (?room=123456)
+    try{
+      const roomFromUrl = (new URLSearchParams(location.search)).get('room');
+      if(roomFromUrl){
+        $('#mpCode', el).value = String(roomFromUrl).trim();
+        setStatus('Cod preluat din link. Apasă „Intră”.');
+      }
+    }catch(e){}
+
     $('#mpJoin', el).onclick = () => {
       const name = $('#mpName', el).value.trim() || 'Player';
-      const code = ($('#mpCode', el).value || '').trim().toUpperCase();
+      const code = ($('#mpCode', el).value || '').trim();
       if(!code) return setStatus('Introdu codul camerei.');
       sessionStorage.setItem('mp.name', name);
       connect();
       wsSend({type:'join', code, name});
       setStatus('Se intră în cameră...');
+    };
+
+    // Share/copy actions (enabled after joined)
+    const shareBtn = $('#mpShare', el);
+    const copyBtn = $('#mpCopy', el);
+    if(shareBtn) shareBtn.onclick = () => { if(room?.code) shareRoom(room.code); };
+    if(copyBtn) copyBtn.onclick = async () => {
+      if(!room?.code) return;
+      const url = buildRoomLink(room.code);
+      try{ await (navigator.clipboard && navigator.clipboard.writeText && navigator.clipboard.writeText(url)); setStatus('Link copiat.'); }
+      catch(e){ setStatus(url); }
     };
 
     function setStatus(t){
@@ -183,6 +236,9 @@
     const b = ensureBadge();
     const cnt = (r.players||[]).length;
     b.textContent = `Room ${r.code} • ${cnt}/4`;
+    b.style.cursor = 'pointer';
+    b.title = 'Click pentru a partaja linkul camerei';
+    b.onclick = () => { try{ shareRoom(r.code); }catch(e){} };
   }
 
   // Perspective: do NOT rotate the whole UI.
@@ -467,9 +523,19 @@
       enableMultiplayer();
       installStartButton();
       showHostStartIfReady();
-      if(window.__mpSetStatus) window.__mpSetStatus(`Ești în camera ${room.code} ca seat ${msg.you.seat+1}/4 (local: bottom).`);
-      const ov = document.getElementById('mpOverlay');
-      if(ov) ov.remove();
+      if(window.__mpSetStatus) window.__mpSetStatus(`Ești în camera ${room.code} (cod: ${room.code}).`);
+
+      // Show share/copy buttons so host can send a direct link for this room
+      try{
+        const ov = document.getElementById('mpOverlay');
+        const shareBtn = ov && ov.querySelector('#mpShare');
+        const copyBtn  = ov && ov.querySelector('#mpCopy');
+        if(shareBtn) shareBtn.style.display = 'inline-block';
+        if(copyBtn)  copyBtn.style.display  = 'inline-block';
+      }catch(e){}
+
+      // auto-dismiss overlay after 2s (still leaves badge in corner)
+      setTimeout(()=>{ try{ const ov=document.getElementById('mpOverlay'); if(ov) ov.remove(); }catch(e){} }, 2000);
       return;
     }
 

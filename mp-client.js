@@ -163,6 +163,22 @@
       if(typeof window.updateLeftScorePanel==='function') window.updateLeftScorePanel();
     }catch(e){}
 
+    // Fill missing seats with deterministic placeholders (avoid footballer names before others join)
+    try{
+      if(window.__state && window.__state.players){
+        for(let i=0;i<4;i++){
+          if(!window.__state.players[i]) continue;
+          const has = (r.players||[]).some(pp => ((you && Number.isFinite(you.realSeat)) ? toLocalSeat(pp.seat) : pp.seat) === i);
+          if(!has){
+            const fallback = (i===0 && you?.name) ? you.name : ('P' + (i+1));
+            window.__state.players[i].name = fallback;
+          }
+          window.__state.players[i].isHuman = true;
+        }
+        window.__state.__botNamesLocked = true;
+      }
+    }catch(e){}
+
     const b = ensureBadge();
     const cnt = (r.players||[]).length;
     b.textContent = `Room ${r.code} • ${cnt}/4`;
@@ -207,6 +223,17 @@
   function enableMultiplayer(){
     if(mpEnabled) return;
     mpEnabled = true;
+
+    // Immediately lock/disable any single-player bot name randomizers
+    try{
+      const st = window.__state;
+      if(st){
+        st.__botNamesLocked = true;
+        if(Array.isArray(st.players)){
+          st.players.forEach(p=>{ if(p) p.isHuman = true; });
+        }
+      }
+    }catch(e){}
 
     // Per-tab override for legacy name sync (A13) which reads localStorage['rentz.playerName'].
     // localStorage is shared across tabs in the same Chrome profile, so we intercept getItem/setItem for this key.

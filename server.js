@@ -112,9 +112,12 @@ const rooms = new Map();
 // room = { code, createdAt, players:[{id,name,ws,seat}], started, seed, hands, chooserIndex }
 
 function roomPublic(r){
+  const connected = r.players.filter(p=>p.ws && p.ws.readyState===1);
   return {
     code: r.code,
     started: !!r.started,
+    maxHumans: r.maxHumans || 4,
+    connectedHumans: connected.length,
     players: r.players.map(p=>({id:p.id,name:p.name,seat:p.seat,connected: !!p.ws && p.ws.readyState===1})),
   };
 }
@@ -131,17 +134,31 @@ function sendTo(p, msg){
 }
 
 function maskedStateFor(r, viewer){
-  // viewer sees full cards for own seat; other seats get only ids + count
-  const seats = [0,1,2,3].map(i=>({
-    name: (r.players.find(x=>x.seat===i)?.name) || `P${i+1}`,
-    seat: i,
-    hand: i===viewer.seat ? r.hands[i].map(c=>({id:c.id,suit:c.suit,rank:c.rank})) : r.hands[i].map(c=>({id:c.id}))
-  }));
+  // Humans are the connected sockets in room.players. Missing seats are bots.
+  const connectedSeats = new Set(r.players.filter(p=>p.ws && p.ws.readyState===1).map(p=>p.seat));
+
+  const seats = [0,1,2,3].map(i=>{
+    const human = connectedSeats.has(i);
+    const name = (r.players.find(x=>x.seat===i)?.name) || (human ? `P${i+1}` : `Bot ${i+1}`);
+
+    // Visibility rules:
+    // - Everyone sees full cards for their own seat.
+    // - Host (seat 0) also sees full cards for bot seats so it can run AI locally.
+    // - Otherwise, other seats are masked (ids only).
+    const isViewer = (i === viewer.seat);
+    const hostCanSeeBots = (viewer.seat === 0) && !human;
+    const reveal = isViewer || hostCanSeeBots;
+
+    return {
+      name,
+      seat: i,
+      hand: reveal ? r.hands[i].map(c=>({id:c.id,suit:c.suit,rank:c.rank})) : r.hands[i].map(c=>({id:c.id}))
+    };
+  });
+
   return {
     players: seats,
-    // chooser: who selects the next subgame
     chooserIndex: (r.chooserIndex ?? 0),
-    // for dealing reference only
     seed: r.seed,
   };
 }
@@ -162,7 +179,7 @@ wss.on('connection', (ws) => {
       const name = String(msg.name || 'Player').slice(0,20);
       console.log('[create]', clientId, 'name=', name);
       const c = code();
-      room = { code:c, createdAt:Date.now(), players:[], started:false, seed:null, hands:null, chooserIndex:0 };
+      room = { code:c, createdAt:Date.now(), players:[], started:false, seed:null, hands:null, chooserIndex:0, maxHumans: Math.max(1, Math.min(4, Number(msg.maxHumans||4))) };
       rooms.set(c, room);
       player = { id: clientId, name, ws, seat: 0 };
       room.players.push(player);
@@ -210,7 +227,8 @@ wss.on('connection', (ws) => {
     if(msg.type === 'start'){
       if(player.seat !== 0) return; // host only
       const connectedNow = room.players.filter(p=>p.ws && p.ws.readyState===1);
-      if(connectedNow.length !== 4) return sendTo(player, {type:'error', message:'Trebuie 4 jucători conectați în cameră.'});
+      const need = room.maxHumans || 4;
+      if(connectedNow.length !== need) return sendTo(player, {type:'error', message:`Trebuie ${need} jucători conectați în cameră.`});
       if(room.started) return;
       room.started = true;
       room.seed = (Date.now() ^ Math.floor(Math.random()*1e9)) >>> 0;

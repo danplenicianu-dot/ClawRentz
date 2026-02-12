@@ -72,6 +72,15 @@
             <label style="display:block;font-size:12px;opacity:.8">Cod cameră</label>
             <input id="mpCode" style="width:100%;padding:10px;border-radius:10px;border:1px solid rgba(255,255,255,.18);background:#0b0b0b;color:#fff;margin-top:6px" placeholder="ex: 123456" inputmode="numeric" />
           </div>
+          <div style="width:128px">
+            <label style="display:block;font-size:12px;opacity:.8">Oameni</label>
+            <select id="mpHumans" style="width:100%;padding:10px;border-radius:10px;border:1px solid rgba(255,255,255,.18);background:#0b0b0b;color:#fff;margin-top:6px">
+              <option value="4" selected>4</option>
+              <option value="3">3</option>
+              <option value="2">2</option>
+              <option value="1">1</option>
+            </select>
+          </div>
           <button id="mpCreate" style="padding:10px 12px;border-radius:10px;border:0;background:#2d6cdf;color:#fff;font-weight:700;cursor:pointer">Creează</button>
           <button id="mpJoin" style="padding:10px 12px;border-radius:10px;border:0;background:#333;color:#fff;font-weight:700;cursor:pointer">Intră</button>
         </div>
@@ -94,9 +103,10 @@
 
     $('#mpCreate', el).onclick = () => {
       const name = $('#mpName', el).value.trim() || 'Player';
+      const maxHumans = Number($('#mpHumans', el)?.value || 4);
       sessionStorage.setItem('mp.name', name);
       connect();
-      wsSend({type:'create', name});
+      wsSend({type:'create', name, maxHumans});
       setStatus('Se creează camera...');
     };
 
@@ -234,8 +244,9 @@
     }catch(e){}
 
     const b = ensureBadge();
-    const cnt = (r.players||[]).length;
-    b.textContent = `Room ${r.code} • ${cnt}/4`;
+    const cnt = (r.connectedHumans != null) ? r.connectedHumans : ((r.players||[]).filter(p=>p.connected).length);
+    const need = r.maxHumans || 4;
+    b.textContent = `Room ${r.code} • ${cnt}/${need}`;
     b.style.cursor = 'pointer';
     b.title = 'Click pentru a partaja linkul camerei';
     b.onclick = () => { try{ shareRoom(r.code); }catch(e){} };
@@ -330,10 +341,32 @@
     const startOverlay = document.getElementById('startOverlay');
     if(startOverlay){ startOverlay.classList.add('hidden'); startOverlay.style.display='none'; }
 
-    // Disable bot autoplay
-    if(typeof window.maybeBotPlay === 'function'){
-      window.maybeBotPlay = function(){};
+    // Bot autoplay: keep enabled ONLY on host, and ONLY for bot seats (when maxHumans < 4)
+    if(!window.__mpOrigMaybeBotPlay && typeof window.maybeBotPlay === 'function'){
+      window.__mpOrigMaybeBotPlay = window.maybeBotPlay;
     }
+    window.maybeBotPlay = function(){
+      try{
+        const st = window.__state;
+        const orig = window.__mpOrigMaybeBotPlay;
+        if(!st || !orig) return;
+
+        // Non-hosts never run bot AI (avoid duplicates)
+        if(!(you && you.realSeat===0)) return;
+
+        const need = room?.maxHumans || 4;
+        if(need >= 4) return; // no bots
+
+        // Determine if the current REAL turn seat belongs to a connected human
+        const connectedReal = new Set((room?.players||[]).filter(p=>p.connected).map(p=>p.seat));
+        const turnReal = toRealSeat(st.turn);
+        const isHumanTurn = connectedReal.has(turnReal);
+        if(isHumanTurn) return;
+
+        // bot turn -> run original bot AI
+        return orig();
+      }catch(e){}
+    };
 
     // Intercept continue to request a new round from server (host triggers)
     origContinue = window.__continue;
@@ -395,7 +428,9 @@
   function showHostStartIfReady(){
     const btn = document.getElementById('mpStartBtn');
     if(!btn || !room || !you) return;
-    const ready = (room.players||[]).length === 4;
+    const cnt = (room.connectedHumans != null) ? room.connectedHumans : ((room.players||[]).filter(p=>p.connected).length);
+    const need = room.maxHumans || 4;
+    const ready = cnt === need;
     btn.style.display = (you.realSeat===0 && ready && !room.started) ? 'block' : 'none';
   }
 

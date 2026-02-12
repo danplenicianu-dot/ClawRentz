@@ -301,7 +301,7 @@ renderHands();
   for(const r of rows){
     const icon = (__i===0 ? '👑 ' : (__i===1 ? '🥈 ' : (__i===2 ? '🥉 ' : '🐔 ')));
     const li = document.createElement('li');
-    li.textContent = icon + r.name + ' — ' + r.total;
+    li.textContent = icon + r.name + ' ' + r.total;
     ul.appendChild(li);
     __i++;
   }
@@ -326,7 +326,7 @@ window.updateLeftScorePanel = updateLeftScorePanel;
         for(let i=0;i<4;i++){
           const r = document.createElement('div'); r.className = 'row';
           r.innerHTML = '<div class="cell name">'+state.players[i].name+'</div>' +
-                        '<div class="cell score">'+(scores[i] >=0 ? '+'+scores[i] : scores[i])+'</div>';
+                        '<div class="cell score">'+scores[i]+'</div>';
           rows.appendChild(r);
         }
         tbl.appendChild(rows);
@@ -1078,6 +1078,21 @@ function showRoundSummary(opts){
     var scores = (opts && opts.scores) ? opts.scores : (window.__state && window.__state.lastScores) || [];
     var S = window.__state || {};
     var players = S.players || [];
+
+    function seatLabel(i){
+      try{
+        var sels = [
+          '.seat-bottom .seat-name',
+          '.seat-right .seat-name',
+          '.seat-top .seat-name',
+          '.seat-left .seat-name'
+        ];
+        var el = document.querySelector(sels[i]);
+        var t = el && el.textContent ? el.textContent.trim() : '';
+        return t;
+      }catch(e){ return ''; }
+    }
+
     var modal = document.getElementById('roundSummary');
     var h2 = document.getElementById('roundSummaryTitle');
     var tbl = document.getElementById('roundSummaryTable');
@@ -1085,11 +1100,13 @@ function showRoundSummary(opts){
     if(tbl){
       tbl.innerHTML='';
       var wrap = document.createElement('div'); wrap.className='rows';
-      for(var i=0;i<(players.length||scores.length||4); i++){
+      var n = Math.max(4, (players && players.length) ? players.length : 0, (scores && scores.length) ? scores.length : 0);
+      for(var i=0;i<n; i++){
         var row = document.createElement('div'); row.className='row simple';
-        var name = (players[i] && players[i].name) ? players[i].name : ('Juc ' + (i+1));
+        // Prefer the on-screen seat labels (they are correct even if state.players gets temporarily inconsistent in MP)
+        var name = seatLabel(i) || ((players[i] && players[i].name) ? players[i].name : ('Juc ' + (i+1)));
         var sc = Number(scores[i]||0);
-        row.innerHTML = '<div class="cell name">'+name+'</div><div class="cell score">'+(sc>=0?('+'+sc):sc)+'</div>';
+        row.innerHTML = '<div class="cell name">'+name+'</div><div class="cell score">'+sc+'</div>';
         wrap.appendChild(row);
       }
       tbl.appendChild(wrap);

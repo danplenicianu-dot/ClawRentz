@@ -29,6 +29,18 @@
   function buildRoomLink(code){
     try{
       const u = new URL(location.href);
+
+      // Always share the AUTO-DETECT landing (index.html), not index-desktop/mobile,
+      // so receivers get the correct UI for their device.
+      const p = u.pathname;
+      if(/\/index-(desktop|mobile)\.html$/i.test(p)){
+        u.pathname = p.replace(/\/index-(desktop|mobile)\.html$/i, '/index.html');
+      }
+      if(/\/index\.html$/i.test(u.pathname) === false && /\/[^\/]+\.html$/i.test(u.pathname)){
+        // If we're on some other html (rare), still prefer /index.html at site root.
+        u.pathname = u.pathname.replace(/\/[^\/]+\.html$/i, '/index.html');
+      }
+
       // keep cache-busters like ?v=, but set/overwrite room param
       u.searchParams.set('room', String(code));
       return u.toString();

@@ -248,6 +248,7 @@
     ws = new WebSocket(WS_URL);
     ws.onopen = () => {
       __wsRetry = 0;
+      setConnBanner('');
       log('ws open');
       while(pending.length){
         try{ ws.send(pending.shift()); }catch(e){ break; }
@@ -264,9 +265,11 @@
         __wsRetryTimer = setTimeout(()=>{ try{ connect(); }catch(e){} }, wait);
         return;
       }
+      setConnBanner('Conexiune pierdută. Reconectez…');
       if(window.__mpSetStatus) window.__mpSetStatus('Conexiune închisă. Reîncearcă.');
     };
     ws.onerror = () => {
+      setConnBanner('Conexiune instabilă. Reconectez…');
       // Render poate fi asleep; nu induce în eroare cu "server local".
       if(window.__mpSetStatus) window.__mpSetStatus('Nu pot contacta serverul MP. Reîncerc…');
       try{ ws.close(); }catch(e){}
@@ -277,13 +280,43 @@
     };
   }
 
+  function wsReady(){ return !!(ws && ws.readyState===1); }
+
+  function ensureConnBanner(){
+    let b = document.getElementById('mpConnBanner');
+    if(b) return b;
+    b = document.createElement('div');
+    b.id = 'mpConnBanner';
+    b.style.cssText = 'position:fixed;top:52px;left:50%;transform:translateX(-50%);z-index:9998;padding:8px 10px;border-radius:12px;background:rgba(0,0,0,.78);color:#fff;font:12px system-ui;border:1px solid rgba(255,255,255,.12);max-width:min(720px,92vw);text-align:center;display:none';
+    document.body.appendChild(b);
+    return b;
+  }
+
+  function setConnBanner(text){
+    const b = ensureConnBanner();
+    if(!text){ b.style.display='none'; b.textContent=''; return; }
+    b.textContent = text;
+    b.style.display = 'block';
+  }
+
   function wsSend(obj){
     const s = JSON.stringify(obj);
-    if(ws && ws.readyState===1){
+    const realtime = (obj && (obj.type==='play_card' || obj.type==='bot_play' || obj.type==='rentz_intent'));
+
+    if(wsReady()){
+      setConnBanner('');
       try{ ws.send(s); }catch(e){}
-    } else {
-      pending.push(s);
+      return;
     }
+
+    // If connection is down, never queue realtime gameplay actions (prevents corrupted state).
+    if(realtime){
+      setConnBanner('Conexiune pierdută. Reconectez…');
+      try{ connect(); }catch(e){}
+      return;
+    }
+
+    pending.push(s);
   }
 
   function seatToName(seat){
@@ -654,6 +687,12 @@
 
       // If this is YOUR play (local seat 0), send normal play.
       if(i === 0){
+        // If WS is down, do not allow the "card lifts but doesn't play" limbo.
+        if(!wsReady()){
+          setConnBanner('Conexiune pierdută. Așteaptă reconectarea ca să poți juca.');
+          try{ connect(); }catch(e){}
+          return;
+        }
         wsSend({type:'play_card', card: { id: card.id, suit: card.suit, rank: card.rank }});
         return;
       }

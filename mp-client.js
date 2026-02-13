@@ -574,6 +574,10 @@
       // refresh selector UI so picked games show disabled/hatched immediately
       try{
         if(typeof window.populateSelector==='function') window.populateSelector();
+        // also refresh title text (some pages set it once with default name)
+        const title = document.getElementById('selectorTitle');
+        const ch = (window.__state?.chooserIndex ?? 0);
+        if(title && window.__state?.players?.[ch]) title.textContent = 'Alege jocul — ' + (window.__state.players[ch].name||'Jucător');
       }catch(e){}
     }catch(e){}
   }
@@ -781,8 +785,22 @@
 
       // Apply locally without rebroadcast.
       try{
+        // Always hide selector once server accepted a choice
+        const sel = document.getElementById('selector');
+        if(sel){ sel.classList.add('hidden'); sel.style.display='none'; }
+      }catch(e){}
+
+      try{
         if(gameName === 'Rentz'){
-          forceOpenRentzOverlay();
+          // Prefer the official hook (rentz-overlay wraps __choose). If it fails, force-open.
+          try{ if(typeof window.__choose === 'function') window.__choose('Rentz'); }catch(e){}
+          setTimeout(()=>{
+            try{
+              const ol = document.getElementById('rentzOverlay');
+              const shown = !!(ol && ol.classList.contains('show') && !ol.hidden);
+              if(!shown) forceOpenRentzOverlay();
+            }catch(e){}
+          }, 120);
         } else {
           if(typeof window.__choose === 'function') window.__choose(gameName);
         }

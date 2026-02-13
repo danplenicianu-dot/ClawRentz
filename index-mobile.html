@@ -59,36 +59,7 @@
       const suitCode = (s==='♠')?'S':(s==='♥')?'H':(s==='♦')?'D':(s==='♣')?'C':'';
       const okRank = (r==='A'||r==='K'||r==='Q'||r==='J'||r==='10'||r==='9'||r==='8'||r==='7');
       if(!suitCode || !okRank) return '';
-      return `assets/cards/cc0/${r}_${suitCode}.svg?v=cc0v2`;
-    }
-
-    function cc0Rect(rank, suit){
-      const r = String(rank);
-      const s = String(suit);
-      const colMap = {A:0,'2':1,'3':2,'4':3,'5':4,'6':5,'7':6,'8':7,'9':8,'10':9,J:10,Q:11,K:12};
-      const rowMap = {'♠':0,'♥':1,'♦':2,'♣':3};
-      const col = colMap[r];
-      const row = rowMap[s];
-      if(col==null || row==null) return null;
-      const Mx=30, My=30, Cw=390, Ch=570;
-      return { x: Mx + Cw*col, y: My + Ch*row, w: 360, h: 540, sw: 5109.1855, sh: 2882.8103 };
-    }
-
-    function applyCC0Background(el, rank, suit){
-      try{
-        const rect = cc0Rect(rank, suit);
-        if(!rect) return;
-        const scale = (el.clientWidth || 64) / rect.w;
-        const bx = -rect.x * scale;
-        const by = -rect.y * scale;
-        const bw = rect.sw * scale;
-        const bh = rect.sh * scale;
-        el.style.backgroundImage = 'url(assets/cards/english-pattern-cc0-clean-v2.svg)';
-        el.style.backgroundRepeat = 'no-repeat';
-        el.style.backgroundSize = bw + 'px ' + bh + 'px';
-        el.style.backgroundPosition = bx + 'px ' + by + 'px';
-        el.style.backgroundColor = '#fff';
-      }catch(e){}
+      return `assets/cards/cc0/${r}_${suitCode}.svg`;
     }
 
     function createCardFace(c){
@@ -99,17 +70,14 @@
 
       if(src){
         d.classList.add('cc0');
-        // Use background sprite crop (Safari-safe). No external refs inside SVG.
-        // Apply after insertion in DOM.
-        requestAnimationFrame(()=>applyCC0Background(d, c.rank, c.suit));
+        d.innerHTML = `<img class="cc0img" src="${src}" alt="${c.rank}${c.suit}" />`;
         return d;
       }
 
-      // fallback
+      // fallback (should be rare)
       d.innerHTML = '<div class="rank">'+c.rank+'</div><div class="suit">'+c.suit+'</div><div class="rank rev">'+c.rank+'</div>';
       return d;
     }
-
     function createCardBack(count){
       const d = document.createElement('div');
       d.className = 'card back';
@@ -553,7 +521,7 @@ window.updateLeftScorePanel = updateLeftScorePanel;
 
   /* CC0 face cards */
   .card.cc0{ padding:0 !important; overflow:hidden; }
-  /* CC0 background sprite */
+  .card.cc0 .cc0img{ width:100%; height:100%; display:block; object-fit:cover; }
 </style>
 
 

@@ -53,26 +53,14 @@
     // expose for multiplayer patch
     window.setActiveSeat = setActiveSeat;
 
-    function cardAsset(rank, suit){
-      const r = String(rank);
-      const s = String(suit);
-      const suitCode = (s==='♠')?'S':(s==='♥')?'H':(s==='♦')?'D':(s==='♣')?'C':'';
-      const okRank = (r==='A'||r==='K'||r==='Q'||r==='J'||r==='10'||r==='9'||r==='8'||r==='7');
-      if(!suitCode || !okRank) return '';
-      return `assets/cards/cc0/${r}_${suitCode}.svg`;
-    }
-
     function createCardFace(c){
-      const src = cardAsset(c.rank, c.suit);
       const d = document.createElement('div');
       d.className = 'card' + (RED.has(c.suit)?' red':'');
       d.dataset.id = c.id;
+      d.innerHTML = '<div class="rank">'+c.rank+'</div><div class="suit">'+c.suit+'</div><div class="rank rev">'+c.rank+'</div>';
+      return d;
+    }
 
-      if(src){
-        d.classList.add('cc0');
-        d.innerHTML = `<img class="cc0img" src="${src}" alt="${c.rank}${c.suit}" />`;
-        return d;
-      }
 
       // fallback (should be rare)
       d.innerHTML = '<div class="rank">'+c.rank+'</div><div class="suit">'+c.suit+'</div><div class="rank rev">'+c.rank+'</div>';
@@ -518,10 +506,6 @@ window.updateLeftScorePanel = updateLeftScorePanel;
   .rentz-overlay.show{display:flex}
   .rentz-overlay .rentz-box{width:min(1100px,92vw);height:min(720px,86vh);background:#0d0d0f;border:1px solid rgba(255,255,255,.08);border-radius:16px;box-shadow:0 20px 60px rgba(0,0,0,.55);overflow:hidden}
   #rentzFrame{display:block;width:100%;height:100%;background:transparent}
-
-  /* CC0 face cards */
-  .card.cc0{ padding:0 !important; overflow:hidden; }
-  .card.cc0 .cc0img{ width:100%; height:100%; display:block; object-fit:cover; }
 </style>
 
 

@@ -310,6 +310,20 @@ wss.on('connection', (ws) => {
       return;
     }
 
+    if(msg.type === 'redeal_same_chooser'){
+      if(player.seat !== 0) return; // host only
+      if(!room.started) return;
+      // Keep chooserIndex same, just redeal.
+      room.seed = (Date.now() ^ Math.floor(Math.random()*1e9)) >>> 0;
+      const dealt = dealState(room.seed);
+      room.hands = dealt.hands;
+      for(const p of room.players){
+        sendTo(p, { type:'init_state', room: roomPublic(room), state: maskedStateFor(room, p) });
+      }
+      broadcast(room, { type:'round_started', chooserIndex: room.chooserIndex, chosenGames: room.chosenGames });
+      return;
+    }
+
     if(msg.type === 'next_round'){
       if(player.seat !== 0) return; // host only for now
       if(!room.started) return;

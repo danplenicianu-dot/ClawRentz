@@ -840,6 +840,38 @@
     }
   }
 
+  // Rentz refused flow: redeal same chooser (host only)
+  if(!window.__mpRentzRefusedHook){
+    window.__mpRentzRefusedHook = true;
+    window.addEventListener('rentzRefused', (ev)=>{
+      try{
+        const r = ev.detail || {};
+        const idx = Number.isFinite(r.refuserIndex) ? r.refuserIndex : null;
+        const cap = r.capete;
+        // show toast
+        try{
+          let t = document.getElementById('mpToast');
+          if(!t){
+            t = document.createElement('div');
+            t.id = 'mpToast';
+            t.style.cssText = 'position:fixed;left:50%;top:14px;transform:translateX(-50%);z-index:10050;background:rgba(0,0,0,.78);color:#fff;padding:10px 12px;border-radius:12px;font:12px system-ui;border:1px solid rgba(255,255,255,.12);max-width:min(520px,92vw);text-align:center;display:none;';
+            document.body.appendChild(t);
+          }
+          const name = (idx!=null && window.__state?.players?.[toLocalSeat(idx)]?.name) ? window.__state.players[toLocalSeat(idx)].name : 'un jucător';
+          t.textContent = `Rentz refuzat: ${name} are ${cap||4} capete. Se reîmparte.`;
+          t.style.display = 'block';
+          clearTimeout(window.__mpToastTimer);
+          window.__mpToastTimer = setTimeout(()=>{ try{ t.style.display='none'; }catch(e){} }, 2600);
+        }catch(e){}
+
+        // Host triggers redeal on server
+        if(you && you.realSeat===0){
+          wsSend({type:'redeal_same_chooser'});
+        }
+      }catch(e){}
+    });
+  }
+
   window.addEventListener('DOMContentLoaded', () => {
     overlay();
   });

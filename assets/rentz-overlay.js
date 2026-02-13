@@ -55,7 +55,14 @@
     
 if(d.type==='rentz:done'){
       const r = d.result||{};
-      if(r.refused){ closeOverlay(); return; }
+      if(r.refused){
+        // Notify parent app (MP) so host can redeal same chooser without consuming Rentz
+        try{
+          window.dispatchEvent(new CustomEvent('rentzRefused', { detail: r }));
+        }catch(e){}
+        closeOverlay();
+        return;
+      }
 
       // 1) apply scores (this shows round summary if available in parent)
       applyScores(r.scores||[]);

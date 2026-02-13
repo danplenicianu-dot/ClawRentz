@@ -124,6 +124,7 @@
             <div class="iosLabel">Cod cameră</div>
             <input id="mpCode" class="iosInput" placeholder="123456" inputmode="numeric" />
           </div>
+          <div id="mpRejoinAsk" class="iosSub" style="display:none; text-align:center; margin: 2px 0 10px; opacity:.8"></div>
           <button id="mpJoin" class="iosBtn" type="button">Intră în cameră</button>
         </div>
 
@@ -171,15 +172,39 @@
     // prefill room code from URL (?room=123456)
     try{
       const roomFromUrl = (new URLSearchParams(location.search)).get('room');
+      const lastRoom = (sessionStorage.getItem('mp.lastRoom')||'').trim();
+      const lastName = (sessionStorage.getItem('mp.name')||'').trim();
+
       if(roomFromUrl){
-        // Link direct cu room => UX simplificat: doar nume + buton Intră
-        $('#mpCode', el).value = String(roomFromUrl).trim();
+        // Link direct cu room => UX simplificat: doar nume + buton Intră / Reintră
+        const rc = String(roomFromUrl).trim();
+        $('#mpCode', el).value = rc;
         try{ setTab('join'); }catch(e){}
         try{ const seg = el.querySelector('.iosSeg'); if(seg) seg.style.display='none'; }catch(e){}
         try{ const pc = $('#mpPaneCreate', el); if(pc) pc.style.display='none'; }catch(e){}
         try{ const cf = $('#mpCodeField', el); if(cf) cf.style.display='none'; }catch(e){}
-        try{ const jb = $('#mpJoin', el); if(jb) jb.textContent = 'Intră'; }catch(e){}
+
+        const ask = $('#mpRejoinAsk', el);
+        const jb = $('#mpJoin', el);
+        const isRejoin = (lastRoom && lastRoom===rc && (lastName || $('#mpName',el).value.trim()));
+        if(ask){
+          ask.style.display = 'block';
+          ask.textContent = isRejoin ? `Reintri în camera ${rc}?` : `Intră în camera ${rc}`;
+        }
+        if(jb) jb.textContent = isRejoin ? 'Reintră' : 'Intră';
         setStatus('');
+      } else if(lastRoom){
+        // Refresh without ?room: offer quick rejoin to last room
+        try{
+          const ask = $('#mpRejoinAsk', el);
+          const jb = $('#mpJoin', el);
+          const cf = $('#mpCodeField', el);
+          if(cf) cf.style.display='none';
+          $('#mpCode', el).value = lastRoom;
+          setTab('join');
+          if(ask){ ask.style.display='block'; ask.textContent = `Reintri în camera ${lastRoom}?`; }
+          if(jb) jb.textContent = 'Reintră';
+        }catch(e){}
       }
     }catch(e){}
 
@@ -822,6 +847,7 @@
       // (localStorage is patched in enableMultiplayer; do not write shared localStorage here)
 
       applyRoomPublic(msg.room);
+      try{ sessionStorage.setItem('mp.lastRoom', String(room.code||'')); }catch(e){}
       enableMultiplayer();
       installStartButton();
       showHostStartIfReady();

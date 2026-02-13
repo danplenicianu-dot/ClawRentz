@@ -523,6 +523,21 @@
     btn.style.display = (you.realSeat===0 && ready && !room.started) ? 'block' : 'none';
   }
 
+  function syncChosenFromServer(chosenReal){
+    try{
+      const st = window.__state;
+      if(!st || !st.players) return;
+      if(!Array.isArray(chosenReal)) return;
+      st.chosenGames = st.chosenGames || [new Set(),new Set(),new Set(),new Set()];
+      // chosenReal is indexed by REAL seat. Convert into LOCAL seat index sets.
+      for(let realSeat=0; realSeat<4; realSeat++){
+        const localSeat = toLocalSeat(realSeat);
+        const list = Array.isArray(chosenReal[realSeat]) ? chosenReal[realSeat] : [];
+        st.chosenGames[localSeat] = new Set(list);
+      }
+    }catch(e){}
+  }
+
   function initRoundFromServer(payload){
     const s = payload.state;
     if(!window.__state) return;
@@ -555,6 +570,9 @@
     // chooser from server is a REAL seat index; convert to LOCAL
     const chooserReal = (s.chooserIndex ?? 0);
     st.chooserIndex = toLocalSeat(chooserReal);
+
+    // sync chosenGames from server, if provided
+    try{ if(s && s.chosenGames) syncChosenFromServer(s.chosenGames); }catch(e){}
 
     setYourHumanSeat();
 
@@ -663,6 +681,8 @@
       applyRoomPublic(msg.room);
       enableMultiplayer();
       initRoundFromServer(msg);
+      // sync chosen subgames from server (authoritative)
+      try{ if(msg.state && msg.state.chosenGames) syncChosenFromServer(msg.state.chosenGames); }catch(e){}
       showHostStartIfReady();
       return;
     }
@@ -688,12 +708,13 @@
 
     if(msg.type==='choose_game'){
       const gameName = msg.gameName;
+      // Sync chosenGames from server if present
+      try{ if(msg.chosenGames) syncChosenFromServer(msg.chosenGames); }catch(e){}
+
       // Apply locally without rebroadcast.
       try{
         if(gameName === 'Rentz'){
-          // Ensure overlay opens even if rentz-overlay wrapper isn't ready yet
-          if(typeof window.handleRentzSelection === 'function') window.handleRentzSelection();
-          else if(typeof window.__choose === 'function') window.__choose('Rentz');
+          if(typeof window.__choose === 'function') window.__choose('Rentz');
         } else {
           if(typeof window.__choose === 'function') window.__choose(gameName);
         }

@@ -160,6 +160,7 @@ function maskedStateFor(r, viewer){
     players: seats,
     chooserIndex: (r.chooserIndex ?? 0),
     seed: r.seed,
+    chosenGames: r.chosenGames || Array.from({length:4}, ()=>[]),
   };
 }
 
@@ -179,7 +180,7 @@ wss.on('connection', (ws) => {
       const name = String(msg.name || 'Player').slice(0,20);
       console.log('[create]', clientId, 'name=', name);
       const c = code();
-      room = { code:c, createdAt:Date.now(), players:[], started:false, seed:null, hands:null, chooserIndex:0, maxHumans: Math.max(1, Math.min(4, Number(msg.maxHumans||4))) };
+      room = { code:c, createdAt:Date.now(), players:[], started:false, seed:null, hands:null, chooserIndex:0, maxHumans: Math.max(1, Math.min(4, Number(msg.maxHumans||4))), chosenGames: Array.from({length:4}, ()=>[]) };
       rooms.set(c, room);
       player = { id: clientId, name, ws, seat: 0 };
       room.players.push(player);
@@ -244,8 +245,24 @@ wss.on('connection', (ws) => {
     }
 
     if(msg.type === 'choose_game'){
-      // everyone receives same
+      // Enforce: each player can pick each subgame ONCE per match.
       const gameName = String(msg.gameName || '');
+      const chooser = (room.chooserIndex ?? 0);
+
+      // Only current chooser can choose (prevents double-chooses / grief).
+      if(player.seat !== chooser){
+        return sendTo(player, {type:'error', message:'Nu e rândul tău să alegi jocul.'});
+      }
+
+      // Initialize chosenGames store (persist across rounds)
+      if(!room.chosenGames) room.chosenGames = Array.from({length:4}, ()=>[]);
+      if(!Array.isArray(room.chosenGames[chooser])) room.chosenGames[chooser] = [];
+
+      if(room.chosenGames[chooser].includes(gameName)){
+        return sendTo(player, {type:'error', message:`Ai ales deja „${gameName}”. Alege alt sub-joc.`});
+      }
+
+      room.chosenGames[chooser].push(gameName);
 
       // Special case: Rentz overlay needs full hands for all seats (it renders lanes/hand UI).
       // Reveal full hands to all connected players when starting Rentz to avoid 'undefined' cards.
@@ -256,21 +273,40 @@ wss.on('connection', (ws) => {
         }catch(e){}
       }
 
-      broadcast(room, { type:'choose_game', gameName });
+      broadcast(room, { type:'choose_game', gameName, chooserIndex: chooser, chosenGames: room.chosenGames });
+
+      // End condition: when everyone exhausted all subgames.
+      const ALL = ['Carouri','Dame','Popa Roșu','10 Trefla','Whist','Totale','Rentz'];
+      try{
+        const done = (room.chosenGames||[]).every(list => ALL.every(g => (list||[]).includes(g)));
+        if(done){
+          broadcast(room, { type:'game_over' });
+        }
+      }catch(e){}
       return;
     }
 
     if(msg.type === 'next_round'){
       if(player.seat !== 0) return; // host only for now
       if(!room.started) return;
-      room.chooserIndex = ((room.chooserIndex ?? 0) + 1) % 4;
+      // Advance chooser to next seat that still has available subgames.
+      const ALL = ['Carouri','Dame','Popa Roșu','10 Trefla','Whist','Totale','Rentz'];
+      if(!room.chosenGames) room.chosenGames = Array.from({length:4}, ()=>[]);
+      let next = (room.chooserIndex ?? 0);
+      for(let tries=0; tries<4; tries++){
+        next = (next + 1) % 4;
+        const list = room.chosenGames[next] || [];
+        const hasRemaining = ALL.some(g => !list.includes(g));
+        if(hasRemaining) break;
+      }
+      room.chooserIndex = next;
       room.seed = (Date.now() ^ Math.floor(Math.random()*1e9)) >>> 0;
       const dealt = dealState(room.seed);
       room.hands = dealt.hands;
       for(const p of room.players){
         sendTo(p, { type:'init_state', room: roomPublic(room), state: maskedStateFor(room, p) });
       }
-      broadcast(room, { type:'round_started', chooserIndex: room.chooserIndex });
+      broadcast(room, { type:'round_started', chooserIndex: room.chooserIndex, chosenGames: room.chosenGames });
       return;
     }
 

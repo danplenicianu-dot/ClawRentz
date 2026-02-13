@@ -238,10 +238,16 @@
     return el;
   }
 
+  let __wsRetry = 0;
+  let __wsRetryTimer = null;
+
   function connect(){
-    if(ws && ws.readyState===1) return;
+    if(ws && (ws.readyState===0 || ws.readyState===1)) return;
+    try{ if(__wsRetryTimer) clearTimeout(__wsRetryTimer); }catch(e){}
+
     ws = new WebSocket(WS_URL);
     ws.onopen = () => {
+      __wsRetry = 0;
       log('ws open');
       while(pending.length){
         try{ ws.send(pending.shift()); }catch(e){ break; }
@@ -249,10 +255,20 @@
     };
     ws.onclose = () => {
       log('ws closed');
+      // If we still have pending requests (create/join), retry a few times.
+      if(pending.length && __wsRetry < 6){
+        const wait = Math.min(6000, 600 * Math.pow(2, __wsRetry));
+        __wsRetry++;
+        if(window.__mpSetStatus) window.__mpSetStatus('Serverul MP pornește… reîncerc ('+__wsRetry+'/6)');
+        __wsRetryTimer = setTimeout(()=>{ try{ connect(); }catch(e){} }, wait);
+        return;
+      }
       if(window.__mpSetStatus) window.__mpSetStatus('Conexiune închisă. Reîncearcă.');
     };
     ws.onerror = () => {
-      if(window.__mpSetStatus) window.__mpSetStatus('Eroare conexiune. Pornește serverul local.');
+      // Render poate fi asleep; nu induce în eroare cu "server local".
+      if(window.__mpSetStatus) window.__mpSetStatus('Nu pot contacta serverul MP. Reîncerc…');
+      try{ ws.close(); }catch(e){}
     };
     ws.onmessage = (ev) => {
       let m; try{ m=JSON.parse(ev.data); }catch(e){ return; }

@@ -1532,85 +1532,9 @@ try{ if (typeof chooseGameForBot==='function') window.chooseGameForBot = chooseG
     .chat-panel{ width: min(92vw, 380px); height: 32vh; right: 12px; bottom: 12px; }
   }
 </style>
-<div id="chatPanel" class="chat-panel" role="region" aria-label="Chat jucători">
-  <div class="chat-header">
-    <div id="chatTitle" class="title" role="button" tabindex="0">💬 Chat</div>
-    <div class="actions">
-      <button id="chatClear" title="Șterge chat">🗑️</button>
-      <button id="chatToggle" title="Minimize / Restore">▾</button>
-    </div>
-  </div>
-  <div class="chat-messages" id="chatList" aria-live="polite"></div>
-  <div class="chat-input">
-    <input id="chatInput" type="text" placeholder="Scrie un mesaj și apasă Enter…" autocomplete="off" />
-    <button id="chatSend" type="button">Trimite</button>
-  </div>
-</div>
-<script id="rentz-chat-logic">
-(function(){
-  var KEY_MSGS = 'rentz_chat_v1';
-  var KEY_MIN  = 'rentz_chat_min';
 
-  function now(){ var d=new Date(); return d.toLocaleTimeString('ro-RO',{hour:'2-digit', minute:'2-digit'}); }
-  function load(){ try{ return JSON.parse(localStorage.getItem(KEY_MSGS)||'[]'); }catch(e){ return []; } }
-  function save(arr){ try{ localStorage.setItem(KEY_MSGS, JSON.stringify(arr.slice(-200))); }catch(e){} }
-  function isMin(){ try{ return localStorage.getItem(KEY_MIN)==='1'; }catch(e){ return false; } }
-  function setMin(v){ try{ localStorage.setItem(KEY_MIN, v?'1':'0'); }catch(e){} }
 
-  function meName(){
-    try{
-      var st=window.__state||{}; var ps=st.players||[];
-      for(var i=0;i<ps.length;i++){ if(ps[i] && ps[i].isHuman) return ps[i].name||'Tu'; }
-      return (ps[0] && ps[0].name) ? ps[0].name : 'Tu';
-    }catch(e){ return 'Tu'; }
-  }
-  function addRow(m, persist){
-    var list=document.getElementById('chatList'); if(!list) return;
-    var row=document.createElement('div'); row.className='message';
-    var a=document.createElement('span'); a.className='author'; a.textContent=m.author+':';
-    var t=document.createElement('span'); t.className='text'; t.textContent=' '+m.text;
-    var tm=document.createElement('span'); tm.className='time'; tm.textContent=m.time||now();
-    row.appendChild(a); row.appendChild(t); row.appendChild(tm);
-    list.appendChild(row); list.scrollTop=list.scrollHeight;
-    if(persist){ var arr=load(); arr.push(m); save(arr); }
-  }
-  function render(){
-    var arr = load(); var list=document.getElementById('chatList'); if(!list) return;
-    list.innerHTML=''; for(var i=0;i<arr.length;i++){ addRow(arr[i], false); }
-  }
-  function clearChat(){
-    try{ localStorage.removeItem(KEY_MSGS); }catch(e){}
-    var list=document.getElementById('chatList'); if(list) list.innerHTML='';
-  }
-  function toggleMin(){
-    var root=document.getElementById('chatPanel'); if(!root) return;
-    var minimized = root.classList.toggle('minimized');
-    setMin(minimized);
-  }
-  function send(){
-    var input=document.getElementById('chatInput'); if(!input) return;
-    var text=(input.value||'').trim(); if(!text) return;
-    addRow({author:meName(), text:text, time:now()}, true); input.value='';
-  }
 
-  // Init immediately (markup is already present)
-  (function init(){
-    try{
-      render();
-      if(isMin()) { var root=document.getElementById('chatPanel'); if(root) root.classList.add('minimized'); }
-      var sendBtn=document.getElementById('chatSend'); if(sendBtn) sendBtn.addEventListener('click', send);
-      var input=document.getElementById('chatInput'); if(input) input.addEventListener('keydown', function(e){ if(e.key==='Enter'){ e.preventDefault(); send(); }});
-      var tgl=document.getElementById('chatToggle'); if(tgl) tgl.addEventListener('click', toggleMin);
-      var ttl=document.getElementById('chatTitle'); if(ttl){ ttl.addEventListener('click', toggleMin); ttl.addEventListener('keydown', function(e){ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); toggleMin(); } }); }
-      var clr=document.getElementById('chatClear'); if(clr) clr.addEventListener('click', clearChat);
-    }catch(e){}
-  })();
-
-  // Optional API
-  window.chatPost = function(text, author){ addRow({author:author||'Sistem', text:text, time:now()}, true); };
-})();
-</script>
-<!-- === /CHAT PANEL === -->
 
 <script>window.MP_WS_URL='wss://clawrentz.onrender.com';</script>
 <script src="./mp-client.js?v=50"></script>

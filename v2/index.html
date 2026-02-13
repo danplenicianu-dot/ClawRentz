@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="ro">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Rentz MP v2</title>
+  <link rel="stylesheet" href="./v2.css" />
+</head>
+<body>
+  <main class="wrap">
+    <section class="card" aria-label="Rentz MP v2 Landing">
+      <div class="top">
+        <div class="title">Rentz MP</div>
+        <div class="subtitle">v2 • fără cont • cod cameră</div>
+      </div>
+
+      <div class="seg" role="tablist" aria-label="Mod">
+        <button id="tabCreate" class="seg-btn active" role="tab" aria-selected="true" type="button">Creează</button>
+        <button id="tabJoin" class="seg-btn" role="tab" aria-selected="false" type="button">Intră</button>
+      </div>
+
+      <div class="form">
+        <label class="field">
+          <div class="label">Nume</div>
+          <input id="name" class="input" placeholder="ex: Dan" maxlength="20" autocomplete="nickname" />
+        </label>
+
+        <div id="paneCreate">
+          <label class="field">
+            <div class="label">Oameni</div>
+            <select id="humans" class="input">
+              <option value="4" selected>4</option>
+              <option value="3">3</option>
+              <option value="2">2</option>
+              <option value="1">1</option>
+            </select>
+          </label>
+
+          <button id="btnCreate" class="btn primary" type="button">Creează cameră</button>
+        </div>
+
+        <div id="paneJoin" style="display:none">
+          <label class="field">
+            <div class="label">Cod cameră</div>
+            <input id="code" class="input" placeholder="123456" inputmode="numeric" maxlength="6" />
+          </label>
+
+          <button id="btnJoin" class="btn primary" type="button">Intră în cameră</button>
+        </div>
+
+        <div id="status" class="status" aria-live="polite"></div>
+
+        <div class="hint">
+          Tip: linkul poate conține <code>?room=123456</code>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script src="./v2.js"></script>
+</body>
+</html>

@@ -404,6 +404,18 @@ wss.on('connection', (ws) => {
       }
 
       sendTo(player, { type:'joined', you:{id:player.id, seat:player.seat, name:player.name}, room: roomPublic(r) });
+
+      // If the match already started, immediately resync state for this (re)joining player.
+      // Otherwise refresh/rejoin would land in a blank UI.
+      try{
+        if(r.started && r.hands){
+          sendTo(player, { type:'init_state', room: roomPublic(r), state: maskedStateFor(r, player) });
+          if(r.currentGame === 'Rentz' && r.rentz){
+            sendTo(player, { type:'rentz_state', state: rentzStateForSeat(r.rentz, player.seat) });
+          }
+        }
+      }catch(e){}
+
       broadcast(r, { type:'room_update', room: roomPublic(r) });
       return;
     }

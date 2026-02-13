@@ -108,7 +108,7 @@
         </div>
 
         <div id="mpPaneJoin" style="display:none">
-          <div class="iosField">
+          <div class="iosField" id="mpCodeField">
             <div class="iosLabel">Cod cameră</div>
             <input id="mpCode" class="iosInput" placeholder="123456" inputmode="numeric" />
           </div>
@@ -160,8 +160,14 @@
     try{
       const roomFromUrl = (new URLSearchParams(location.search)).get('room');
       if(roomFromUrl){
+        // Link direct cu room => UX simplificat: doar nume + buton Intră
         $('#mpCode', el).value = String(roomFromUrl).trim();
-        setStatus('Cod preluat din link. Apasă „Intră”.');
+        try{ setTab('join'); }catch(e){}
+        try{ const seg = el.querySelector('.iosSeg'); if(seg) seg.style.display='none'; }catch(e){}
+        try{ const pc = $('#mpPaneCreate', el); if(pc) pc.style.display='none'; }catch(e){}
+        try{ const cf = $('#mpCodeField', el); if(cf) cf.style.display='none'; }catch(e){}
+        try{ const jb = $('#mpJoin', el); if(jb) jb.textContent = 'Intră'; }catch(e){}
+        setStatus('');
       }
     }catch(e){}
 

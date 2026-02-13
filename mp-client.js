@@ -429,14 +429,45 @@
       }
     };
 
-    // intercept choose game
+    // Hook selector buttons instead of overriding window.__choose.
+    // Overriding __choose breaks the Rentz overlay which relies on wrapping __choose.
     origChoose = window.__choose;
-    window.__choose = function(gameName){
-      if(!you || !room) return;
-      // apply locally immediately for responsive UI
-      try{ if(origChoose) origChoose(gameName); }catch(e){}
-      wsSend({type:'choose_game', gameName});
-    };
+
+    function openRentzLocally(){
+      try{
+        // Prefer dedicated handler if present
+        if(typeof window.handleRentzSelection === 'function') return window.handleRentzSelection();
+      }catch(e){}
+      try{
+        // Fallback: call current __choose (may be wrapped by rentz-overlay.js)
+        if(typeof window.__choose === 'function') return window.__choose('Rentz');
+      }catch(e){}
+    }
+
+    function wireSelectorOnce(){
+      if(window.__mpSelectorWired) return;
+      window.__mpSelectorWired = true;
+      document.addEventListener('click', (ev)=>{
+        try{
+          const btn = ev.target && ev.target.closest && ev.target.closest('#selector .game-btn');
+          if(!btn) return;
+          const gameName = (btn.textContent || '').trim();
+          if(!gameName) return;
+          // prevent the built-in click handler from running (we'll apply locally via __choose)
+          ev.preventDefault();
+          ev.stopImmediatePropagation();
+
+          // broadcast selection
+          wsSend({type:'choose_game', gameName});
+
+          // apply locally
+          if(gameName === 'Rentz') openRentzLocally();
+          else if(typeof window.__choose === 'function') window.__choose(gameName);
+        }catch(e){}
+      }, true);
+    }
+
+    wireSelectorOnce();
 
     // intercept play card: send to server only
     origPlayCard = window.playCard;
@@ -656,7 +687,17 @@
     }
 
     if(msg.type==='choose_game'){
-      applyChooseGame(msg.gameName);
+      const gameName = msg.gameName;
+      // Apply locally without rebroadcast.
+      try{
+        if(gameName === 'Rentz'){
+          // Ensure overlay opens even if rentz-overlay wrapper isn't ready yet
+          if(typeof window.handleRentzSelection === 'function') window.handleRentzSelection();
+          else if(typeof window.__choose === 'function') window.__choose('Rentz');
+        } else {
+          if(typeof window.__choose === 'function') window.__choose(gameName);
+        }
+      }catch(e){}
       return;
     }
 

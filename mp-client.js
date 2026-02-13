@@ -259,6 +259,24 @@
       // keep local seat name stable
       if(you?.name && window.__state.players[0]) window.__state.players[0].name = you.name;
       syncSeatLabels();
+
+      // Patch round summary names if it's currently visible
+      const rs = document.getElementById('roundSummary');
+      if(rs && !rs.classList.contains('hidden') && rs.style.display !== 'none'){
+        const rows = rs.querySelectorAll('#roundSummaryTable .row');
+        rows.forEach((row,i)=>{
+          const nameCell = row.querySelector('.cell.name');
+          if(nameCell) nameCell.textContent = window.__state.players[i]?.name || nameCell.textContent;
+        });
+      }
+
+      // Patch selector title if visible
+      const sel = document.getElementById('selector');
+      if(sel && !sel.classList.contains('hidden') && sel.style.display !== 'none'){
+        const title = document.getElementById('selectorTitle');
+        const ch = (window.__state?.chooserIndex ?? 0);
+        if(title && window.__state.players[ch]) title.textContent = 'Alege jocul — ' + (window.__state.players[ch].name||'Jucător');
+      }
     }catch(e){}
   }
 

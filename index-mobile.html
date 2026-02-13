@@ -5,7 +5,7 @@
   <link rel="stylesheet" href="./mobile.css?v=8" />
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Rentz & Trick-Taking — Faza 1</title>
+  <title>Rentz & Trick-Taking - Faza 1</title>
   <link rel="stylesheet" href="./style.css">
   <script>
   // ===== Core game logic (inline, loads before body for reliability) =====
@@ -218,8 +218,8 @@ renderHands();
             }
             fanInToWinner(best.player);
             state.trick=[]; state.turn=best.player; setActiveSeat(best.player);
-            setTimeout(()=>{ 
-              renderHands(); 
+            setTimeout(()=>{
+              renderHands();
               const handsEmpty = !state.players.some(p=>p.hand && p.hand.length>0);
               if(handsEmpty){ finalizeRound(); } else { maybeBotPlay(); }
             }, 520);
@@ -256,7 +256,7 @@ renderHands();
       }catch(e){}
     };
 
-    
+
     // ===== Scoring =====
     // Early termination logic for subgames
     function earlyEndIfResolved(){
@@ -311,12 +311,12 @@ renderHands();
 // expose for multiplayer patch
 window.updateLeftScorePanel = updateLeftScorePanel;
     function finalizeRound(){
-      const game = state.gameName || '—';
+      const game = state.gameName || '-';
       const scores = [0,0,0,0];
       for(let i=0;i<4;i++){ scores[i] = scoreFor(game, state.stats[i]); }
       state.lastScores = scores.slice();
       const title = document.getElementById('roundSummaryTitle');
-      if(title) title.textContent = 'Rezumat runda — ' + game;
+      if(title) title.textContent = 'Rezumat runda - ' + game;
       const tbl = document.getElementById('roundSummaryTable');
       if(tbl){
       // accumulate totals and refresh leaderboard
@@ -364,7 +364,7 @@ window.updateLeftScorePanel = updateLeftScorePanel;
     function populateSelector(){
       const chooser = state.chooserIndex||0;
       const title = document.getElementById('selectorTitle');
-      if(title){ title.textContent = 'Alege jocul — ' + state.players[chooser].name; }
+      if(title){ title.textContent = 'Alege jocul - ' + state.players[chooser].name; }
       const buttons = document.querySelectorAll('#selector .games .game-btn');
       buttons.forEach(btn=>{
         const name = btn.textContent.trim();
@@ -387,7 +387,7 @@ window.updateLeftScorePanel = updateLeftScorePanel;
     }
     // expose for multiplayer patch
     window.populateSelector = populateSelector;
-    
+
     function chooseGameForBot(chooser){
       const hand = state.players[chooser].hand || [];
       // simple features
@@ -463,7 +463,7 @@ window.updateLeftScorePanel = updateLeftScorePanel;
       document.addEventListener('keydown', function(e){ if(!startOverlay.classList.contains('hidden') && e.key==='Enter'){ window.__start(); }});
     });
   })();
-  
+
 
   try{
     var isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
@@ -499,10 +499,10 @@ window.updateLeftScorePanel = updateLeftScorePanel;
     <div class="score-panel">
       <div class="score-title">Scor total</div>
       <ul id="scoreList">
-        <li>Domnul Dan — 0</li>
-        <li>Bot A — 0</li>
-        <li>Bot B — 0</li>
-        <li>Bot C — 0</li>
+        <li>Domnul Dan - 0</li>
+        <li>Bot A - 0</li>
+        <li>Bot B - 0</li>
+        <li>Bot C - 0</li>
       </ul>
     </div>
 
@@ -573,7 +573,7 @@ window.updateLeftScorePanel = updateLeftScorePanel;
         <button id="startBtn" type="button" onclick="window.__start()">Start joc</button>
       </div>
     </div>
-  
+
     <div id="roundSummary" class="modal hidden">
       <div class="modal-card">
         <h2 id="roundSummaryTitle">Rezumat runda</h2>
@@ -581,7 +581,7 @@ window.updateLeftScorePanel = updateLeftScorePanel;
         <div class="modal-actions" style="display:none"></div>
       </div>
     </div>
-    
+
 </div>
 
 <script>
@@ -662,7 +662,7 @@ window.updateLeftScorePanel = updateLeftScorePanel;
   const title = document.getElementById('selectorTitle');
   if(title && window.__state){
     const ch = __state.chooserIndex||0;
-    title.textContent = 'Alege jocul — ' + (__state.players[ch]?.name || 'Jucător');
+    title.textContent = 'Alege jocul - ' + (__state.players[ch]?.name || 'Jucător');
   }
 })();
 </script>
@@ -708,7 +708,7 @@ window.updateLeftScorePanel = updateLeftScorePanel;
 
   <div id="rentzModal" class="modal hidden" style="display:none;">
     <div class="modal-content">
-      <h2>Rentz — schelet</h2>
+      <h2>Rentz - schelet</h2>
       <p>Interfață lane-uri & reguli ±1 vor fi completate. Poți <strong>refuza Rentz</strong> acum sau continua varianta schelet (fără scor).</p>
       <div class="modal-actions">
         <button id="rentzRefuseBtn" class="btn danger">Refuză Rentz</button>
@@ -905,7 +905,7 @@ window.updateLeftScorePanel = updateLeftScorePanel;
       wrap.innerHTML = [
         '<div id="rentzModal" class="modal hidden" style="display:none;">',
         '  <div class="modal-content">',
-        '    <h2>Rentz — schelet</h2>',
+        '    <h2>Rentz - schelet</h2>',
         '    <p>Interfața lane-uri & regulile ±1 urmează în pasul următor. Poți <strong>refuza</strong> sau <strong>finaliza</strong> (schelet) acum.</p>',
         '    <div class="lanes">',
         '      <div class="lane">Lane 1</div>',
@@ -961,8 +961,8 @@ window.updateLeftScorePanel = updateLeftScorePanel;
   ready(function(){ 
     patchLeaderboard(); 
     patchSymbols(); 
-    patchEarlyStop(); 
-    patchRentzSkeleton(); 
+    patchEarlyStop();
+    // patchRentzSkeleton disabled: Rentz uses real overlay (assets/rentz-overlay.js)
   });
 })();
 </script>
@@ -1009,12 +1009,12 @@ window.updateLeftScorePanel = updateLeftScorePanel;
     var m = document.getElementById('rentzModal');
     if(!m){
       var wrap = document.createElement('div');
-      wrap.innerHTML = '<div id="rentzModal" class="modal hidden" style="display:none;"><div class="modal-content"><h2>Rentz — schelet</h2><p>Regulile (lane-uri, ±1, A bonus, skip) vor fi implementate în pasul următor.</p><div class="modal-actions"><button id="rentzCont" class="btn">Continuă schelet</button></div></div></div>';
+      wrap.innerHTML = '<div id="rentzModal" class="modal hidden" style="display:none;"><div class="modal-content"><h2>Rentz - schelet</h2><p>Regulile (lane-uri, ±1, A bonus, skip) vor fi implementate în pasul următor.</p><div class="modal-actions"><button id="rentzCont" class="btn">Continuă schelet</button></div></div></div>';
       document.body.appendChild(wrap.firstChild);
       m = document.getElementById('rentzModal');
     }else{
       var mc = m.querySelector('.modal-content');
-      if(mc) mc.innerHTML = '<h2>Rentz — schelet</h2><p>Regulile (lane-uri, ±1, A bonus, skip) vor fi implementate în pasul următor.</p><div class="modal-actions"><button id="rentzCont" class="btn">Continuă schelet</button></div>';
+      if(mc) mc.innerHTML = '<h2>Rentz - schelet</h2><p>Regulile (lane-uri, ±1, A bonus, skip) vor fi implementate în pasul următor.</p><div class="modal-actions"><button id="rentzCont" class="btn">Continuă schelet</button></div>';
     }
     m.classList.remove('hidden'); m.style.display='flex';
     var btn = document.getElementById('rentzCont');
@@ -1113,7 +1113,7 @@ function showRoundSummary(opts){
     var modal = document.getElementById('roundSummary');
     var h2 = document.getElementById('roundSummaryTitle');
     var tbl = document.getElementById('roundSummaryTable');
-    if(h2) h2.textContent = title + ' — rezultate';
+    if(h2) h2.textContent = title + ' - rezultate';
     if(tbl){
       tbl.innerHTML='';
       var wrap = document.createElement('div'); wrap.className='rows';
@@ -1165,7 +1165,7 @@ function __sampleNamesRO(count, exclude){
       if(!S.players || !S.players.length) return false;
       if(S.__botNamesLocked) return true;
       var botIdx=[], exclude=[];
-      for(var i=0;i<S.players.length;i++){ 
+      for(var i=0;i<S.players.length;i++){
         var p=S.players[i]||{};
         var isHuman = !!(p.isHuman || p.human || p.type==='human' || /\btu\b/i.test((p.name||'')));
         if(isHuman) exclude.push(p.name||''); else botIdx.push(i);
@@ -1369,7 +1369,7 @@ try{ if (typeof chooseGameForBot==='function') window.chooseGameForBot = chooseG
     }
   }
   const phrases = [
-    'test rentz', 'test rentz ai', 'test rentz ai v2', 
+    'test rentz', 'test rentz ai', 'test rentz ai v2',
     'force rentz', 'qa ', 'debug ', 'no action required'
   ].map(s=>s.toLowerCase());
   function sweep(){
@@ -1612,7 +1612,7 @@ try{ if (typeof chooseGameForBot==='function') window.chooseGameForBot = chooseG
 <!-- === /CHAT PANEL === -->
 
 <script>window.MP_WS_URL='wss://clawrentz.onrender.com';</script>
-<script src="./mp-client.js?v=34"></script>
+<script src="./mp-client.js?v=35"></script>
   <script src="./mobile.js" defer></script>
 </body>
 </html>

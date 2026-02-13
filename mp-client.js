@@ -933,6 +933,8 @@
     if(msg.type==='init_state'){
       applyRoomPublic(msg.room);
       enableMultiplayer();
+      // Start match timer for MP clients (they don't use window.__start)
+      try{ if(window.__state && !window.__state.matchStartedAt) window.__state.matchStartedAt = Date.now(); }catch(e){}
       initRoundFromServer(msg);
       // sync chosen subgames from server (authoritative)
       try{ if(msg.state && msg.state.chosenGames) syncChosenFromServer(msg.state.chosenGames); }catch(e){}

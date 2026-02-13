@@ -238,15 +238,8 @@ function start(payload){
       orderOut: [], skipFor: null,
       lanes: {'♠':{open:false,seq:[],L:null,R:null}, '♣':{open:false,seq:[],L:null,R:null}, '♥':{open:false,seq:[],L:null,R:null}, '♦':{open:false,seq:[],L:null,R:null}}
     };
-    // Refuz Rentz: ≥4 capete (A sau minRank) la vreun jucător
-    for(let i=0;i<n;i++){
-      const cnt = P.hands[i].filter(c => c.rank==='A' || c.rank===P.minRank).length;
-      if(cnt>=4){
-        const b=document.createElement('div'); b.className='badge'; b.textContent='Refuz Rentz — redeal'; document.body.appendChild(b); setTimeout(()=>b.remove(),1200);
-        setTimeout(()=> post('rentz:done', {result:{refused:true}}), 900);
-        return;
-      }
-    }
+    // NOTE (MP): do NOT auto-refuse Rentz. Always allow playing.
+    // (The old single-player rule "refuz rentz" caused the overlay to close immediately.)
     renderBoard(); renderHand(); titleTurn();
     if(!P.players[P.turn].isHuman) setTimeout(botStep, 260);
   }

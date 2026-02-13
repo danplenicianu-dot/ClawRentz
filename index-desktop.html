@@ -348,7 +348,7 @@ window.updateLeftScorePanel = updateLeftScorePanel;
             if(m){ m.classList.add('hidden'); m.style.display='none'; }
           }catch(e){}
           try{ if(typeof window.__continue==='function') window.__continue(); }catch(e){}
-        }, 3000);
+        }, 5000);
       }catch(e){}
     }
     window.__continue = function(){
@@ -1160,7 +1160,7 @@ function showRoundSummary(opts){
           if(m){ m.classList.add('hidden'); m.style.display='none'; }
         }catch(e){}
         try{ if(typeof window.__continue==='function') window.__continue(); }catch(e){}
-      }, 3000);
+      }, 5000);
     }catch(e){}
   }catch(e){ console && console.warn && console.warn('showRoundSummary failed', e); }
 }

@@ -122,7 +122,6 @@
           <button id="mpCopy" class="iosBtn secondary" type="button" style="display:none">Copiază link</button>
         </div>
 
-        <div class="iosTiny">Tip: poți trimite link direct cu camera (are parametru <code>?room=</code>).</div>
       </div>
     `;
     document.body.appendChild(el);

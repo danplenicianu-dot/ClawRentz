@@ -457,12 +457,15 @@
           ev.preventDefault();
           ev.stopImmediatePropagation();
 
-          // broadcast selection
+          // broadcast selection (SERVER is authoritative; do not apply locally here)
           wsSend({type:'choose_game', gameName});
 
-          // apply locally
-          if(gameName === 'Rentz') openRentzLocally();
-          else if(typeof window.__choose === 'function') window.__choose(gameName);
+          // optimistic local apply removed: if server rejects (already chosen / wrong turn),
+          // applying locally would make it look like it "worked".
+          try{
+            const s = document.getElementById('mpStatus');
+            if(s) s.textContent = 'Se trimite alegerea...';
+          }catch(e){}
         }catch(e){}
       }, true);
     }
@@ -656,7 +659,17 @@
         t.textContent = text;
         t.style.display = 'block';
         clearTimeout(window.__mpToastTimer);
-        window.__mpToastTimer = setTimeout(()=>{ try{ t.style.display='none'; }catch(e){} }, 2200);
+        window.__mpToastTimer = setTimeout(()=>{ try{ t.style.display='none'; }catch(e){} }, 2400);
+      }catch(e){}
+
+      // If chooser tried to pick an already-chosen game, reopen selector so they can pick again.
+      try{
+        const st = window.__state;
+        const sel = document.getElementById('selector');
+        if(sel && st && (st.chooserIndex===0)){
+          sel.classList.remove('hidden');
+          sel.style.display = 'flex';
+        }
       }catch(e){}
       return;
     }

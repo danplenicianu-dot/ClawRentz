@@ -256,8 +256,7 @@
         const localSeat = toLocalSeat(p.seat);
         if(window.__state.players[localSeat]) window.__state.players[localSeat].name = p.name;
       }
-      // keep local seat name stable
-      if(you?.name && window.__state.players[0]) window.__state.players[0].name = you.name;
+      // Names are authoritative from room; do not overwrite seat 0 with a cached local name.
       syncSeatLabels();
 
       // Patch round summary names if it's currently visible
@@ -395,7 +394,9 @@
         const _get = localStorage.getItem.bind(localStorage);
         const _set = localStorage.setItem.bind(localStorage);
         localStorage.getItem = (k) => {
-          if(k === 'rentz.playerName' && you?.name) return String(you.name);
+          if(k === 'rentz.playerName'){
+            try{ return String(window.__state?.players?.[0]?.name || you?.name || 'Player'); }catch(e){ return String(you?.name || 'Player'); }
+          }
           return _get(k);
         };
         localStorage.setItem = (k,v) => {
@@ -625,8 +626,7 @@
       st.players[i].name = rotated[i].name;
       st.players[i].hand = (rotated[i].hand || []).slice();
     }
-    // ensure local seat name stays the local player's name
-    try{ if(you?.name) st.players[0].name = you.name; }catch(e){}
+    // seat0 name comes from server room mapping (avoid phantom defaults)
     syncSeatLabels();
 
     // chooser from server is a REAL seat index; convert to LOCAL
@@ -785,8 +785,7 @@
             const full = (hands[realSeat]||[]).map(c=>({id:c.id,suit:c.suit,rank:c.rank}));
             st.players[localSeat].hand = full;
           }
-          // keep local seat name stable
-          try{ if(you?.name) st.players[0].name = you.name; }catch(e){}
+          // keep names from room/state; do not overwrite seat 0 with cached name
           syncSeatLabels();
           if(typeof window.renderHands==='function') window.renderHands();
         }

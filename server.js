@@ -245,7 +245,18 @@ wss.on('connection', (ws) => {
 
     if(msg.type === 'choose_game'){
       // everyone receives same
-      broadcast(room, { type:'choose_game', gameName: msg.gameName });
+      const gameName = String(msg.gameName || '');
+
+      // Special case: Rentz overlay needs full hands for all seats (it renders lanes/hand UI).
+      // Reveal full hands to all connected players when starting Rentz to avoid 'undefined' cards.
+      if(gameName === 'Rentz'){
+        try{
+          const hands = (room.hands || []).map(h => (h||[]).map(c=>({id:c.id,suit:c.suit,rank:c.rank})));
+          broadcast(room, { type:'rentz_reveal', hands });
+        }catch(e){}
+      }
+
+      broadcast(room, { type:'choose_game', gameName });
       return;
     }
 

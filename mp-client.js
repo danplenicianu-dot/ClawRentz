@@ -566,17 +566,7 @@
   function applyChooseGame(gameName){
     // apply locally using original choose if exists
     if(origChoose) origChoose(gameName);
-
-    // Multiplayer compatibility: Rentz flow uses a modal/overlay in this codebase.
-    // To avoid desync/deadlocks, auto-complete the Rentz modal on all clients.
-    if(gameName === 'Rentz'){
-      setTimeout(() => {
-        try{
-          const fin = document.getElementById('rentzFinishBtn') || document.getElementById('rentzCont');
-          if(fin) fin.click();
-        }catch(e){}
-      }, 300);
-    }
+    // NOTE: For Rentz we must NOT auto-finish; the overlay/miniapp runs and closes itself.
   }
 
   function applyPlayCard(seat, card){
@@ -643,6 +633,25 @@
       enableMultiplayer();
       initRoundFromServer(msg);
       showHostStartIfReady();
+      return;
+    }
+
+    if(msg.type==='rentz_reveal'){
+      try{
+        const st = window.__state;
+        const hands = msg.hands || [];
+        if(st && st.players && hands.length){
+          for(let realSeat=0; realSeat<4; realSeat++){
+            const localSeat = toLocalSeat(realSeat);
+            const full = (hands[realSeat]||[]).map(c=>({id:c.id,suit:c.suit,rank:c.rank}));
+            st.players[localSeat].hand = full;
+          }
+          // keep local seat name stable
+          try{ if(you?.name) st.players[0].name = you.name; }catch(e){}
+          syncSeatLabels();
+          if(typeof window.renderHands==='function') window.renderHands();
+        }
+      }catch(e){}
       return;
     }
 

@@ -385,6 +385,17 @@ wss.on('connection', (ws) => {
       console.log('[join]', clientId, 'code=', c, 'name=', name);
       const r = rooms.get(c);
       if(!r) return ws.send(JSON.stringify({type:'error', message:'Camera nu există.'}));
+
+      // If a client reconnects quickly (network flap) the old ws may still look OPEN.
+      // Prevent duplicate players by reclaiming the seat by name and closing the old socket.
+      try{
+        const sameNameConnected = r.players.find(p=>p.name===name && p.ws && p.ws.readyState===1);
+        if(sameNameConnected && sameNameConnected.ws && sameNameConnected.ws !== ws){
+          try{ sameNameConnected.ws.close(4000, 'replaced'); }catch(e){}
+          try{ sameNameConnected.ws = null; }catch(e){}
+        }
+      }catch(e){}
+
       // Room capacity is 4 CONNECTED players. Allow re-joining into disconnected slots.
       const connected = r.players.filter(p=>p.ws && p.ws.readyState===1);
       if(connected.length >= 4){

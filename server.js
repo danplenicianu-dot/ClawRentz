@@ -443,7 +443,8 @@ wss.on('connection', (ws) => {
       if(player.seat !== 0) return; // host only
       const connectedNow = room.players.filter(p=>p.ws && p.ws.readyState===1);
       const need = room.maxHumans || 4;
-      if(connectedNow.length !== need) return sendTo(player, {type:'error', message:`Trebuie ${need} jucători conectați în cameră.`});
+      // Allow >need connected sockets (can happen briefly during reconnect flaps).
+      if(connectedNow.length < need) return sendTo(player, {type:'error', message:`Trebuie ${need} jucători conectați în cameră.`});
       if(room.started) return;
       room.started = true;
       room.seed = (Date.now() ^ Math.floor(Math.random()*1e9)) >>> 0;

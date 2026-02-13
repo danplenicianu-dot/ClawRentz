@@ -960,6 +960,18 @@
       applyPlayCard(localSeat, msg.card);
       return;
     }
+
+    if(msg.type==='replay_plays'){
+      // Rebuild trick-taking state for a rejoining client
+      try{
+        const plays = msg.plays || [];
+        for(const p of plays){
+          const localSeat = toLocalSeat(p.seat);
+          applyPlayCard(localSeat, p.card);
+        }
+      }catch(e){}
+      return;
+    }
   }
 
   // Rentz refused flow: redeal same chooser (host only)

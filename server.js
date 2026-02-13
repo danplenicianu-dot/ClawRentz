@@ -361,7 +361,7 @@ wss.on('connection', (ws) => {
       name = name.slice(0,20);
       console.log('[create]', clientId, 'name=', name);
       const c = code();
-      room = { code:c, createdAt:Date.now(), players:[], started:false, seed:null, hands:null, chooserIndex:0, maxHumans: Math.max(1, Math.min(4, Number(msg.maxHumans||4))), chosenGames: Array.from({length:4}, ()=>[]) };
+      room = { code:c, createdAt:Date.now(), players:[], started:false, seed:null, hands:null, chooserIndex:0, maxHumans: Math.max(1, Math.min(4, Number(msg.maxHumans||4))), chosenGames: Array.from({length:4}, ()=>[]), currentGame:null, rentz:null, playLog:[] };
       rooms.set(c, room);
       player = { id: clientId, name, ws, seat: 0 };
       room.players.push(player);
@@ -410,8 +410,20 @@ wss.on('connection', (ws) => {
       try{
         if(r.started && r.hands){
           sendTo(player, { type:'init_state', room: roomPublic(r), state: maskedStateFor(r, player) });
+
+          // Re-open current subgame UI for the rejoining player.
+          if(r.currentGame){
+            sendTo(player, { type:'choose_game', gameName: r.currentGame, chooserIndex: (r.chooserIndex??0), chosenGames: r.chosenGames||Array.from({length:4}, ()=>[]) });
+          }
+
+          // Rentz authoritative state
           if(r.currentGame === 'Rentz' && r.rentz){
             sendTo(player, { type:'rentz_state', state: rentzStateForSeat(r.rentz, player.seat) });
+          }
+
+          // Replay trick-taking plays so the client can rebuild local state.
+          if(r.currentGame && r.currentGame !== 'Rentz' && Array.isArray(r.playLog) && r.playLog.length){
+            sendTo(player, { type:'replay_plays', plays: r.playLog });
           }
         }
       }catch(e){}
@@ -464,6 +476,7 @@ wss.on('connection', (ws) => {
 
       // Store as current round selection ONLY. We will mark it as used on round_end.
       room.currentGame = gameName;
+      room.playLog = []; // reset subgame event log for rejoin replay
 
       // Rentz MP authoritative: server owns the Rentz state and pushes masked state per seat.
       if(gameName === 'Rentz'){
@@ -593,6 +606,7 @@ wss.on('connection', (ws) => {
       if(!Number.isFinite(card.id)) return;
       console.log('[play_card]', room.code, 'seat', player.seat, 'cardId', card.id);
 
+      try{ room.playLog = room.playLog || []; room.playLog.push({seat: player.seat, card}); }catch(e){}
       broadcast(room, { type:'play_card', seat: player.seat, card });
       return;
     }
@@ -607,6 +621,7 @@ wss.on('connection', (ws) => {
       const card = { id: Number(c.id), suit: String(c.suit||''), rank: String(c.rank||'') };
       if(!Number.isFinite(card.id)) return;
       console.log('[bot_play]', room.code, 'botSeat', seat, 'cardId', card.id);
+      try{ room.playLog = room.playLog || []; room.playLog.push({seat, card}); }catch(e){}
       broadcast(room, { type:'play_card', seat, card });
       return;
     }

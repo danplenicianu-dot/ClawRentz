@@ -35,7 +35,8 @@
       chooserIndex:0,
       chosenGames:[new Set(), new Set(), new Set(), new Set()],
       stats:[{tricks:0,diamonds:0,queens:0,kh:false,t10c:false},{tricks:0,diamonds:0,queens:0,kh:false,t10c:false},{tricks:0,diamonds:0,queens:0,kh:false,t10c:false},{tricks:0,diamonds:0,queens:0,kh:false,t10c:false}],
-      lastScores:[0,0,0,0]
+      lastScores:[0,0,0,0],
+      matchStartedAt: null
     };
     const state = window.__state;
 
@@ -244,7 +245,7 @@ renderHands();
     window.maybeBotPlay = function(){ const p=state.turn; if(state.players[p].isHuman) return; const c = botPick(p); setTimeout(()=> window.playCard(p,c), 620); }
 
     // Start + Choose exposed early
-    window.__start = function(){ try{ const seatName = document.querySelector('.seat-bottom .seat-name'); if(seatName && nameInput){ seatName.textContent = nameInput.value.trim() || 'Tu'; } }catch(e){} try{ if(startOverlay){ startOverlay.classList.add('hidden'); startOverlay.style.display='none'; } }catch(e){} startNewRound(); };
+    window.__start = function(){ try{ const seatName = document.querySelector('.seat-bottom .seat-name'); if(seatName && nameInput){ seatName.textContent = nameInput.value.trim() || 'Tu'; } }catch(e){} try{ if(startOverlay){ startOverlay.classList.add('hidden'); startOverlay.style.display='none'; } }catch(e){} try{ if(!state.matchStartedAt) state.matchStartedAt = Date.now(); }catch(e){} startNewRound(); };
     window.__choose = function(name){
       try{
         if(hudGameName){ hudGameName.textContent = name; hudGameName.classList.remove('hidden'); }
@@ -459,6 +460,26 @@ window.updateLeftScorePanel = updateLeftScorePanel;
       if(centerDash){ centerDash.textContent=''; }
       setActiveSeat(0);
 
+      // Match timer
+      function fmt(ms){
+        ms = Math.max(0, ms|0);
+        const s = Math.floor(ms/1000);
+        const m = Math.floor(s/60);
+        const ss = String(s%60).padStart(2,'0');
+        const mm = String(m).padStart(2,'0');
+        return mm + ':' + ss;
+      }
+      function tick(){
+        try{
+          const el = document.getElementById('matchTimer');
+          if(!el) return;
+          if(!state.matchStartedAt){ el.textContent = 'Timp: 00:00'; return; }
+          el.textContent = 'Timp: ' + fmt(Date.now() - state.matchStartedAt);
+        }catch(e){}
+      }
+      setInterval(tick, 1000);
+      tick();
+
       // Enter to start
       document.addEventListener('keydown', function(e){ if(!startOverlay.classList.contains('hidden') && e.key==='Enter'){ window.__start(); }});
     });
@@ -498,6 +519,7 @@ window.updateLeftScorePanel = updateLeftScorePanel;
   <div id="app" class="app">
     <div class="score-panel">
       <div class="score-title">Scor total</div>
+      <div id="matchTimer" style="margin:6px 0 10px; font:12px system-ui; opacity:.75">Timp: 00:00</div>
       <ul id="scoreList">
         <li>Domnul Dan - 0</li>
         <li>Bot A - 0</li>
@@ -1537,7 +1559,7 @@ try{ if (typeof chooseGameForBot==='function') window.chooseGameForBot = chooseG
 
 
 <script>window.MP_WS_URL='wss://clawrentz.onrender.com';</script>
-<script src="./mp-client.js?v=54"></script>
+<script src="./mp-client.js?v=55"></script>
   <script src="./mobile.js" defer></script>
 </body>
 </html>

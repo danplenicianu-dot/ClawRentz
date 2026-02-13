@@ -113,8 +113,7 @@
     const nxt = S.players.find(p=>p.seat===S.next);
     const curName = cur ? cur.name : ('P'+(S.turn+1));
     const nxtName = nxt ? nxt.name : ('P'+(S.next+1));
-    const meSeat = (S.me && Number.isFinite(S.me.seat)) ? S.me.seat : '?';
-    t.textContent = `Rândul: ${curName} • Urmează: ${nxtName}   (tu:${meSeat} / turn:${S.turn})`;
+    t.textContent = `Rândul: ${curName} • Urmează: ${nxtName}`;
   }
 
   function renderHand(){
@@ -140,10 +139,8 @@
         el.classList.add('dim');
       }
 
-      // Debug/robustness: if it's your turn, always allow click; server will accept/reject.
-      if(myTurn){
-        el.style.cursor = 'pointer';
-        el.title = ok ? 'Mutare validă' : 'Server: posibil invalid (click pentru test)';
+      // On your turn, click sends intent to server.
+      if(ok){
         el.addEventListener('click', ()=>{
           post('rentz:action', { action:{ kind:'play', cardId:c.id } });
         });
@@ -177,9 +174,8 @@
     if(!el) return;
     const arr = Array.isArray(S.orderOut) ? S.orderOut : [];
     if(!arr.length){ el.textContent = ''; return; }
-    // Example: "Terminați: #1 Dan, #2 Ana"
     const txt = arr.map(x=>`#${x.pos} ${x.name||('P'+((x.seat|0)+1))}`).join(' • ');
-    el.textContent = 'Terminați: ' + txt;
+    el.textContent = 'Joc încheiat de: ' + txt;
   }
 
   function render(){

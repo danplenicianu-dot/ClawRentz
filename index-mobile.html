@@ -680,7 +680,8 @@ window.updateLeftScorePanel = updateLeftScorePanel;
     obs.observe(sel, { attributes:true, childList:true, subtree:true });
     armButtons();
   }
-  // After original choose, enforce chooser as current turn and refresh UI immediately
+  // After original choose, enforce chooser as current turn and refresh UI immediately.
+  // IMPORTANT: do not special-case Rentz here; rentz-overlay.js wraps __choose to open the overlay.
   const oc = window.__choose;
   window.__choose = function(name){
     const rv = oc ? oc(name) : undefined;

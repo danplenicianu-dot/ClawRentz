@@ -299,20 +299,30 @@ renderHands();
     function updateLeftScorePanel(){
   const ul = document.getElementById('scoreList');
   if(!ul) return;
-  ul.innerHTML = '';
-  // Build list with totals
-  const rows = [];
-  for(let i=0;i<4;i++){
-    rows.push({i, name: state.players[i].name, total: (state.totals && state.totals[i]) || 0});
-  }
-  rows.sort((a,b)=> b.total - a.total);
-  let __i=0;
-  for(const r of rows){
-    const icon = (__i===0 ? '👑 ' : (__i===1 ? '🥈 ' : (__i===2 ? '🥉 ' : '🐔 ')));
-    const li = document.createElement('li');
-    li.textContent = icon + r.name + ' ' + r.total;
-    ul.appendChild(li);
-    __i++;
+  try{
+    const S = window.__state || {};
+    const players = Array.isArray(S.players) ? S.players : [];
+    const totals  = Array.isArray(S.totals) ? S.totals : [0,0,0,0];
+
+    const rows = [];
+    for(let i=0;i<4;i++){
+      const nameFromState = (players[i] && players[i].name) ? String(players[i].name) : '';
+      const nameFromDom = (document.querySelectorAll('.seat-name')[i] && document.querySelectorAll('.seat-name')[i].textContent) ? document.querySelectorAll('.seat-name')[i].textContent.trim() : '';
+      const name = nameFromState || nameFromDom || ('P'+(i+1));
+      rows.push({i, name, total: Number(totals[i]||0)});
+    }
+
+    rows.sort((a,b)=> b.total - a.total);
+    ul.innerHTML = '';
+    rows.forEach((r, idx)=>{
+      const icon = (idx===0 ? '👑 ' : (idx===1 ? '🥈 ' : (idx===2 ? '🥉 ' : '🐔 ')));
+      const li = document.createElement('li');
+      li.textContent = icon + r.name + ' ' + r.total;
+      ul.appendChild(li);
+    });
+  }catch(e){
+    // Last resort: never leave it empty
+    ul.innerHTML = '<li>P1 0</li><li>P2 0</li><li>P3 0</li><li>P4 0</li>';
   }
 }
 // expose for multiplayer patch

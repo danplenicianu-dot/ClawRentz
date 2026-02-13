@@ -312,6 +312,9 @@
     b.style.cursor = 'pointer';
     b.title = 'Click pentru a partaja linkul camerei';
     b.onclick = () => { try{ shareRoom(r.code); }catch(e){} };
+
+    // ensure state names are consistent for round summary + overlays
+    syncNamesFromRoom();
   }
 
   // Perspective: do NOT rotate the whole UI.
@@ -764,17 +767,19 @@
       try{ const sel=document.getElementById('selector'); if(sel && (window.__state?.chooserIndex||0)!==0){ sel.classList.add('hidden'); sel.style.display='none'; } }catch(e){}
 
       // Apply locally without rebroadcast.
-      try{ if(typeof window.__choose === 'function') window.__choose(gameName); }catch(e){}
+      // Apply locally without rebroadcast.
+      try{
+        if(gameName === 'Rentz'){
+          // For Rentz, avoid triggering any legacy "schelet" UI; open overlay directly.
+          forceOpenRentzOverlay();
+        } else {
+          if(typeof window.__choose === 'function') window.__choose(gameName);
+        }
+      }catch(e){}
 
-      // If Rentz overlay didn't open, force open (defensive)
+      // Ensure Rentz overlay is actually visible
       if(gameName === 'Rentz'){
-        setTimeout(()=>{
-          try{
-            const ol = document.getElementById('rentzOverlay');
-            const shown = !!(ol && ol.classList.contains('show') && !ol.hidden);
-            if(!shown) forceOpenRentzOverlay();
-          }catch(e){}
-        }, 80);
+        setTimeout(()=>{ try{ forceOpenRentzOverlay(); }catch(e){} }, 120);
       }
       return;
     }

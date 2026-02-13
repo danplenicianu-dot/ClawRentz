@@ -177,7 +177,11 @@ wss.on('connection', (ws) => {
     try{ msg = JSON.parse(buf.toString('utf8')); }catch(e){ return; }
 
     if(msg.type === 'create'){
-      const name = String(msg.name || 'Player').slice(0,20);
+      let name = String(msg.name || 'Player');
+      name = name.replace(/https?:\/\/\S+/gi,'').replace(/\s+/g,' ').trim();
+      name = name.replace(/[^\p{L}\p{N} _.-]/gu,'').trim();
+      if(!name) name = 'Player';
+      name = name.slice(0,20);
       console.log('[create]', clientId, 'name=', name);
       const c = code();
       room = { code:c, createdAt:Date.now(), players:[], started:false, seed:null, hands:null, chooserIndex:0, maxHumans: Math.max(1, Math.min(4, Number(msg.maxHumans||4))), chosenGames: Array.from({length:4}, ()=>[]) };
@@ -191,7 +195,11 @@ wss.on('connection', (ws) => {
 
     if(msg.type === 'join'){
       const c = String(msg.code||'').toUpperCase().trim();
-      const name = String(msg.name || 'Player').slice(0,20);
+      let name = String(msg.name || 'Player');
+      name = name.replace(/https?:\/\/\S+/gi,'').replace(/\s+/g,' ').trim();
+      name = name.replace(/[^\p{L}\p{N} _.-]/gu,'').trim();
+      if(!name) name = 'Player';
+      name = name.slice(0,20);
       console.log('[join]', clientId, 'code=', c, 'name=', name);
       const r = rooms.get(c);
       if(!r) return ws.send(JSON.stringify({type:'error', message:'Camera nu există.'}));

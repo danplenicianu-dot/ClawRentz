@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="ro">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Rentz v2 — Cameră</title>
+  <link rel="stylesheet" href="./v2.css?v=room1" />
+  <link rel="stylesheet" href="./room.css?v=room1" />
+  <style>
+    body{background:#f2f2f7 !important; color:#111114 !important;}
+  </style>
+</head>
+<body>
+  <header class="hud">
+    <div class="hud-left">
+      <div class="pill" id="roomPill">Room</div>
+      <div class="pill subtle" id="youPill">Tu</div>
+    </div>
+    <div class="hud-right">
+      <button class="pill btnpill" id="btnCopy">Copiază link</button>
+      <button class="pill btnpill" id="btnLeave">Ieși</button>
+    </div>
+  </header>
+
+  <main class="table">
+    <div class="seat seat-top">
+      <div class="seat-name" id="p2">—</div>
+      <div class="seat-meta" id="p2m">8</div>
+    </div>
+
+    <div class="seat seat-left">
+      <div class="seat-name" id="p3">—</div>
+      <div class="seat-meta" id="p3m">8</div>
+    </div>
+
+    <div class="seat seat-right">
+      <div class="seat-name" id="p1">—</div>
+      <div class="seat-meta" id="p1m">8</div>
+    </div>
+
+    <div class="center">
+      <div class="center-title" id="phase">Așteptare…</div>
+      <div class="playmat">
+        <div class="spot top"></div>
+        <div class="spot right"></div>
+        <div class="spot bottom"></div>
+        <div class="spot left"></div>
+      </div>
+    </div>
+
+    <div class="handWrap">
+      <div class="seat-name me" id="p0">Tu</div>
+      <div class="hand" id="hand"></div>
+    </div>
+  </main>
+
+  <script src="./room.js?v=room1"></script>
+</body>
+</html>

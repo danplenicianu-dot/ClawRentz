@@ -41,17 +41,21 @@
     return clean || 'Player';
   }
 
-  // Stub actions for now (V2 step 1 is just landing UI)
+  function genRoom(){
+    return String(Math.floor(100000 + Math.random()*900000));
+  }
+
   $('#btnCreate').addEventListener('click', ()=>{
     const name = getName();
     const humans = Number($('#humans').value||4);
-    setStatus(`(demo) Creează: nume=${name}, oameni=${humans}`);
+    const room = genRoom();
+    location.href = `./room.html?room=${encodeURIComponent(room)}&name=${encodeURIComponent(name)}&humans=${encodeURIComponent(String(humans))}`;
   });
 
   $('#btnJoin').addEventListener('click', ()=>{
     const name = getName();
     const code = ($('#code').value||'').trim();
     if(!code) return setStatus('Introdu codul camerei.');
-    setStatus(`(demo) Intră: cod=${code}, nume=${name}`);
+    location.href = `./room.html?room=${encodeURIComponent(code)}&name=${encodeURIComponent(name)}&humans=4`;
   });
 })();

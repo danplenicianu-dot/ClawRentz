@@ -219,10 +219,22 @@ function allEmpty(){ return P.hands.every(h=>h.length===0); }
       }
       wrap.appendChild(el);
     });
-    // Auto-pass if none playable for human
+    // Human: no auto-pass. Show a "Pas" button when nothing is playable.
     if(P.players[i].isHuman && !anyPlayable(i)){
-      const b=document.createElement('div'); b.className='badge'; b.textContent='Pas (nimic jucabil)'; document.body.appendChild(b); setTimeout(()=>b.remove(),800);
-      setTimeout(advance, 320);
+      let pb = document.getElementById('btnPass');
+      if(!pb){
+        pb = document.createElement('button');
+        pb.id = 'btnPass';
+        pb.className = 'btn';
+        pb.style.cssText = 'position:fixed;left:50%;bottom:18px;transform:translateX(-50%);z-index:10;padding:10px 14px;border-radius:12px;border:1px solid rgba(255,255,255,.18);background:rgba(0,0,0,.55);color:#fff;font-weight:800;cursor:pointer;';
+        pb.textContent = 'Pas';
+        document.body.appendChild(pb);
+      }
+      pb.style.display = 'inline-block';
+      pb.onclick = ()=>{ try{ pb.style.display='none'; }catch(e){} advance(); };
+    } else {
+      const pb = document.getElementById('btnPass');
+      if(pb) pb.style.display = 'none';
     }
 }
 

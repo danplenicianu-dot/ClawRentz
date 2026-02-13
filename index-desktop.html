@@ -57,7 +57,7 @@
       const suitCode = (s==='♠')?'S':(s==='♥')?'H':(s==='♦')?'D':(s==='♣')?'C':'';
       const okRank = (r==='A'||r==='K'||r==='Q'||r==='J'||r==='10'||r==='9'||r==='8'||r==='7');
       if(!suitCode || !okRank) return '';
-      return `assets/cards/cc0/${r}_${suitCode}.svg`;
+      return `assets/cards/cc0/${r}_${suitCode}.svg?v=cc0v2`;
     }
 
     function createCardFace(c){

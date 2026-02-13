@@ -794,6 +794,7 @@
 
     if(msg.type==='rentz_state'){
       // Authoritative state from server. Forward to overlay iframe renderer.
+      try{ window.__lastRentzState = msg.state; }catch(e){}
       try{
         if(typeof window.__rentzSetState === 'function') window.__rentzSetState(msg.state);
       }catch(e){}
@@ -839,8 +840,12 @@
 
       try{
         if(gameName === 'Rentz'){
-          // MP authoritative: open overlay; state will arrive via rentz_state messages.
+          // MP authoritative: open overlay; request snapshot (in case first push was missed).
           if(typeof window.__rentzOpen === 'function') window.__rentzOpen();
+          try{
+            if(window.__lastRentzState && typeof window.__rentzSetState === 'function') window.__rentzSetState(window.__lastRentzState);
+          }catch(e){}
+          try{ wsSend({type:'rentz_state_req'}); }catch(e){}
         } else {
           if(typeof window.__choose === 'function') window.__choose(gameName);
         }

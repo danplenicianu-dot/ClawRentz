@@ -540,6 +540,14 @@ wss.on('connection', (ws) => {
       return;
     }
 
+    if(msg.type === 'rentz_state_req'){
+      if(!room.started) return;
+      if(room.currentGame !== 'Rentz' || !room.rentz) return;
+      // Send current masked state to requester (useful if first snapshot was missed)
+      sendTo(player, { type:'rentz_state', state: rentzStateForSeat(room.rentz, player.seat) });
+      return;
+    }
+
     if(msg.type === 'rentz_intent'){
       if(!room.started) return;
       if(room.currentGame !== 'Rentz' || !room.rentz) return;

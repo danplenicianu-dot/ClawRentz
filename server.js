@@ -213,6 +213,7 @@ function rentzStateForSeat(st, seat){
   const players = st.players.map(p=>({ seat:p.seat, name:p.name, finished: !!st.finished[p.seat], count: (st.hands[p.seat]||[]).length }));
   const me = { seat, finished: !!st.finished[seat], hand: (st.hands[seat]||[]).map(c=>({id:c.id, suit:c.suit, rank:c.rank})) };
   const next = rentzNextAlive(st, st.turn);
+  const orderOut = (st.orderOut||[]).map((s, idx)=>({ seat:s, pos: idx+1, name: (st.players.find(p=>p.seat===s)?.name) || `P${s+1}` }));
   return {
     seed: st.seed,
     minRank: st.minRank,
@@ -221,6 +222,7 @@ function rentzStateForSeat(st, seat){
     lanes: st.lanes,
     players,
     me,
+    orderOut,
   };
 }
 
@@ -235,7 +237,7 @@ function rentzApplyIntent(st, seat, intent){
     let nxt = rentzNextAlive(st, st.turn);
     if(st.skipFor!=null && nxt===st.skipFor){ st.skipFor=null; nxt = rentzNextAlive(st, nxt); }
     st.turn = nxt;
-    return { ok:true, out: (outPos!=null ? { seat, pos: outPos } : null) };
+    return { ok:true, out: null };
   }
 
   if(intent.kind==='play'){
@@ -599,6 +601,13 @@ wss.on('connection', (ws) => {
       for(const p of room.players){
         sendTo(p, { type:'rentz_state', state: rentzStateForSeat(room.rentz, p.seat) });
       }
+
+      // Notify when someone finishes (order-out)
+      try{
+        if(res.out && Number.isFinite(res.out.seat) && Number.isFinite(res.out.pos)){
+          broadcast(room, { type:'rentz_out', out: res.out, orderOut: (room.rentz?.orderOut||[]) });
+        }
+      }catch(e){}
 
       if(res.done){
         broadcast(room, { type:'rentz_done', result: res.result });

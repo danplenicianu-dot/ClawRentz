@@ -163,10 +163,22 @@
     }
   }
 
+  function renderOrderOut(){
+    if(!S) return;
+    const el = document.getElementById('orderOut');
+    if(!el) return;
+    const arr = Array.isArray(S.orderOut) ? S.orderOut : [];
+    if(!arr.length){ el.textContent = ''; return; }
+    // Example: "Terminați: #1 Dan, #2 Ana"
+    const txt = arr.map(x=>`#${x.pos} ${x.name||('P'+((x.seat|0)+1))}`).join(' • ');
+    el.textContent = 'Terminați: ' + txt;
+  }
+
   function render(){
     if(!S) return;
     renderBoard();
     renderTurnInfo();
     renderHand();
+    renderOrderOut();
   }
 })();

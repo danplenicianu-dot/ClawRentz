@@ -641,7 +641,23 @@
   function handle(msg){
     if(msg.type==='hello') return;
     if(msg.type==='error'){
-      if(window.__mpSetStatus) window.__mpSetStatus(msg.message || 'Eroare.');
+      const text = msg.message || 'Eroare.';
+      // show in overlay if still present
+      try{ if(window.__mpSetStatus) window.__mpSetStatus(text); }catch(e){}
+      // also show in-game toast (overlay can be gone)
+      try{
+        let t = document.getElementById('mpToast');
+        if(!t){
+          t = document.createElement('div');
+          t.id = 'mpToast';
+          t.style.cssText = 'position:fixed;left:50%;top:14px;transform:translateX(-50%);z-index:10050;background:rgba(0,0,0,.78);color:#fff;padding:10px 12px;border-radius:12px;font:12px system-ui;border:1px solid rgba(255,255,255,.12);max-width:min(520px,92vw);text-align:center;display:none;';
+          document.body.appendChild(t);
+        }
+        t.textContent = text;
+        t.style.display = 'block';
+        clearTimeout(window.__mpToastTimer);
+        window.__mpToastTimer = setTimeout(()=>{ try{ t.style.display='none'; }catch(e){} }, 2200);
+      }catch(e){}
       return;
     }
 
@@ -710,6 +726,8 @@
       const gameName = msg.gameName;
       // Sync chosenGames from server if present
       try{ if(msg.chosenGames) syncChosenFromServer(msg.chosenGames); }catch(e){}
+      // If server says it's not your turn, ensure selector stays closed
+      try{ const sel=document.getElementById('selector'); if(sel && (window.__state?.chooserIndex||0)!==0){ sel.classList.add('hidden'); sel.style.display='none'; } }catch(e){}
 
       // Apply locally without rebroadcast.
       try{

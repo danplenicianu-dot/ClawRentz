@@ -172,12 +172,22 @@
     // prefill room code from URL (?room=123456)
     try{
       const roomFromUrl = (new URLSearchParams(location.search)).get('room');
-      const lastRoom = (sessionStorage.getItem('mp.lastRoom')||'').trim();
+      let lastRoom = (sessionStorage.getItem('mp.lastRoom')||'').trim();
       const lastName = (sessionStorage.getItem('mp.name')||'').trim();
+
+      const isValidRoomCode = (c) => /^\d{6}$/.test(String(c||'').trim());
+      if(lastRoom && !isValidRoomCode(lastRoom)){
+        // Guard against stale/invalid room codes from older builds
+        try{ sessionStorage.removeItem('mp.lastRoom'); }catch(e){}
+        lastRoom = '';
+      }
 
       if(roomFromUrl){
         // Link direct cu room => UX simplificat: doar nume + buton Intră / Reintră
         const rc = String(roomFromUrl).trim();
+        if(!isValidRoomCode(rc)){
+          setStatus('Cod cameră invalid (trebuie 6 cifre).');
+        }
         $('#mpCode', el).value = rc;
         try{ setTab('join'); }catch(e){}
         try{ const seg = el.querySelector('.iosSeg'); if(seg) seg.style.display='none'; }catch(e){}

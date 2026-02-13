@@ -4,7 +4,17 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <title>Rentz v2</title>
-  <link rel="stylesheet" href="./v2.css?v=light2" />
+  <link rel="stylesheet" href="./v2.css?v=light3" />
+  <!-- cache-proof minimal overrides (so we never ship dark by accident) -->
+  <style>
+    body{background:#f2f2f7 !important; color:#111114 !important;}
+    .card{background:#ffffff !important; border-color:rgba(0,0,0,.08) !important; box-shadow:0 28px 60px rgba(0,0,0,.10) !important;}
+    .seg{background:rgba(0,0,0,.04) !important; border-color:rgba(0,0,0,.08) !important;}
+    .seg-btn{color:#111114 !important;}
+    .seg-btn.active{background:#fff !important; border-color:rgba(0,0,0,.12) !important; box-shadow:0 6px 16px rgba(0,0,0,.08) !important;}
+    .input{background:rgba(0,0,0,.02) !important; border-color:rgba(0,0,0,.08) !important; color:#111114 !important;}
+    .label{color:rgba(17,17,20,.55) !important;}
+  </style>
 </head>
 <body>
   <main class="wrap">
@@ -52,6 +62,6 @@
     </section>
   </main>
 
-  <script src="./v2.js?v=light2"></script>
+  <script src="./v2.js?v=light3"></script>
 </body>
 </html>

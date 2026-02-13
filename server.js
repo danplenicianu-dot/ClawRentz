@@ -554,7 +554,7 @@ wss.on('connection', (ws) => {
       room.rentz = null;
       room.currentGame = null;
       for(const p of room.players){
-        sendTo(p, { type:'init_state', room: roomPublic(room), state: maskedStateFor(room, p) });
+        sendTo(p, { type:'init_state', room: roomPublic(room), state: maskedStateFor(room, p), totals: room.totals||[0,0,0,0] });
       }
       broadcast(room, { type:'round_started', chooserIndex: room.chooserIndex, chosenGames: room.chosenGames });
       return;
@@ -580,7 +580,7 @@ wss.on('connection', (ws) => {
       room.rentz = null;
       room.currentGame = null;
       for(const p of room.players){
-        sendTo(p, { type:'init_state', room: roomPublic(room), state: maskedStateFor(room, p) });
+        sendTo(p, { type:'init_state', room: roomPublic(room), state: maskedStateFor(room, p), totals: room.totals||[0,0,0,0] });
       }
       broadcast(room, { type:'round_started', chooserIndex: room.chooserIndex, chosenGames: room.chosenGames });
       return;

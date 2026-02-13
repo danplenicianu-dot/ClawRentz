@@ -255,6 +255,7 @@
     };
     ws.onclose = () => {
       log('ws closed');
+      try{ ws = null; }catch(e){}
       // If we still have pending requests (create/join), retry a few times.
       if(pending.length && __wsRetry < 6){
         const wait = Math.min(6000, 600 * Math.pow(2, __wsRetry));
@@ -917,11 +918,36 @@
       return;
     }
 
+    if(msg.type==='rentz_out'){
+      // Someone finished Rentz — toast for everyone
+      try{
+        const out = msg.out || {};
+        const realSeat = Number(out.seat);
+        const pos = Number(out.pos);
+        const localSeat = toLocalSeat(realSeat);
+        const name = (window.__state?.players?.[localSeat]?.name) || `P${localSeat+1}`;
+
+        let t = document.getElementById('mpToast');
+        if(!t){
+          t = document.createElement('div');
+          t.id = 'mpToast';
+          t.style.cssText = 'position:fixed;left:50%;top:14px;transform:translateX(-50%);z-index:10050;background:rgba(0,0,0,.78);color:#fff;padding:10px 12px;border-radius:12px;font:12px system-ui;border:1px solid rgba(255,255,255,.12);max-width:min(520px,92vw);text-align:center;display:none;';
+          document.body.appendChild(t);
+        }
+        t.textContent = `${name} a terminat Rentz (#${pos||'?'}).`;
+        t.style.display = 'block';
+        clearTimeout(window.__mpToastTimer);
+        window.__mpToastTimer = setTimeout(()=>{ try{ t.style.display='none'; }catch(e){} }, 2400);
+      }catch(e){}
+      return;
+    }
+
     if(msg.type==='rentz_done'){
       // Apply scores locally (server-authoritative) and close overlay.
       // IMPORTANT: server scores are in REAL seat order. Convert to LOCAL seat order.
       try{
         const scoresReal = (msg.result && msg.result.scores) ? msg.result.scores : [];
+        const orderOutReal = (msg.result && msg.result.orderOut) ? msg.result.orderOut : [];
         const S = window.__state || (window.__state = {});
         const n = (S.players && S.players.length) ? S.players.length : 4;
         S.totals = S.totals || new Array(n).fill(0);
@@ -936,6 +962,28 @@
         S.lastScores = scoresLocal.slice();
         if(typeof window.updateLeftScorePanel==='function') window.updateLeftScorePanel();
         if(typeof window.showRoundSummary==='function') window.showRoundSummary({title:'Rentz', scores: scoresLocal});
+
+        // Extra: show finishing order
+        try{
+          const orderLocal = (orderOutReal||[]).map(rs=>toLocalSeat(Number(rs)));
+          const names = orderLocal.map((ls,i)=>{
+            const nm = (S.players?.[ls]?.name) || `P${ls+1}`;
+            return `${i+1}. ${nm}`;
+          });
+          if(names.length){
+            let t = document.getElementById('mpToast');
+            if(!t){
+              t = document.createElement('div');
+              t.id = 'mpToast';
+              t.style.cssText = 'position:fixed;left:50%;top:14px;transform:translateX(-50%);z-index:10050;background:rgba(0,0,0,.78);color:#fff;padding:10px 12px;border-radius:12px;font:12px system-ui;border:1px solid rgba(255,255,255,.12);max-width:min(520px,92vw);text-align:center;display:none;';
+              document.body.appendChild(t);
+            }
+            t.textContent = `Ordine: ${names.join(' • ')}`;
+            t.style.display = 'block';
+            clearTimeout(window.__mpToastTimer);
+            window.__mpToastTimer = setTimeout(()=>{ try{ t.style.display='none'; }catch(e){} }, 3600);
+          }
+        }catch(e){}
       }catch(e){}
       try{ if(typeof window.__rentzClose==='function') window.__rentzClose(); }catch(e){}
       return;

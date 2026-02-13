@@ -189,7 +189,9 @@ function rentzMaybeFinish(st, seat){
   if((st.hands[seat]||[]).length===0 && !st.finished[seat]){
     st.finished[seat] = true;
     st.orderOut.push(seat);
+    return st.orderOut.length; // position (1..4)
   }
+  return null;
 }
 
 function rentzAllEmpty(st){
@@ -233,7 +235,7 @@ function rentzApplyIntent(st, seat, intent){
     let nxt = rentzNextAlive(st, st.turn);
     if(st.skipFor!=null && nxt===st.skipFor){ st.skipFor=null; nxt = rentzNextAlive(st, nxt); }
     st.turn = nxt;
-    return { ok:true };
+    return { ok:true, out: (outPos!=null ? { seat, pos: outPos } : null) };
   }
 
   if(intent.kind==='play'){
@@ -250,26 +252,26 @@ function rentzApplyIntent(st, seat, intent){
     // capăt mic => skip next alive
     if(removed.rank===st.minRank){ st.skipFor = rentzNextAlive(st, seat); }
 
-    rentzMaybeFinish(st, seat);
+    const outPos = rentzMaybeFinish(st, seat);
 
     // end check
     if(rentzAllEmpty(st)){
       for(let i=0;i<4;i++) if(!st.finished[i]){ st.finished[i]=true; st.orderOut.push(i); }
-      return { ok:true, done:true, result:{ orderOut: st.orderOut.slice(), scores: rentzScoresFromOrder(st.orderOut) } };
+      return { ok:true, done:true, out: (outPos!=null ? { seat, pos: outPos } : null), result:{ orderOut: st.orderOut.slice(), scores: rentzScoresFromOrder(st.orderOut) } };
     }
 
     // A bonus: extra turn if still playable else advance
     const bonus = (removed.rank==='A');
     if(bonus && rentzAnyPlayable(st, seat)){
       // keep turn
-      return { ok:true };
+      return { ok:true, out: (outPos!=null ? { seat, pos: outPos } : null) };
     }
 
     // advance
     let nxt = rentzNextAlive(st, st.turn);
     if(st.skipFor!=null && nxt===st.skipFor){ st.skipFor=null; nxt = rentzNextAlive(st, nxt); }
     st.turn = nxt;
-    return { ok:true };
+    return { ok:true, out: (outPos!=null ? { seat, pos: outPos } : null) };
   }
 
   return { ok:false, error:'Intent necunoscut.' };
@@ -585,6 +587,13 @@ wss.on('connection', (ws) => {
       if(!res.ok){
         return sendTo(player, { type:'error', message: res.error || 'Acțiune invalidă.' });
       }
+
+      // Notify if someone just finished (orderOut position)
+      try{
+        if(res.out){
+          broadcast(room, { type:'rentz_out', out: res.out });
+        }
+      }catch(e){}
 
       // Push updated state to all seats
       for(const p of room.players){

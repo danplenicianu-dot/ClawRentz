@@ -101,6 +101,180 @@ function trickWinner(trick){
   return best.player;
 }
 
+// --- Rentz (MP authoritative) ---
+function seedRank(n){ return (n<=3)?'J':(n===4?'10':'9'); }
+function minRank(n){ return (n<=3)?'9':(n===4?'7':(n===5?'5':'3')); }
+function rv(rank){ return RANK_VALUE[rank] || 0; }
+
+function rentzInit(room){
+  const n = 4;
+  const seed = seedRank(n);
+  const minR = minRank(n);
+  const hands = (room.hands||[]).map(h => (h||[]).map(c=>({id:c.id, suit:c.suit, rank:c.rank})));
+  const players = [0,1,2,3].map(seat=>({
+    seat,
+    name: (room.players.find(p=>p.seat===seat)?.name) || `P${seat+1}`,
+  }));
+
+  const state = {
+    seed,
+    minRank: minR,
+    turn: (room.chooserIndex ?? 0),
+    finished: [false,false,false,false],
+    orderOut: [],
+    skipFor: null,
+    lanes: {
+      '♠':{open:false, seq:[], L:null, R:null},
+      '♣':{open:false, seq:[], L:null, R:null},
+      '♥':{open:false, seq:[], L:null, R:null},
+      '♦':{open:false, seq:[], L:null, R:null},
+    },
+    hands,
+    players,
+  };
+
+  // Refuz Rentz: ≥4 capete (A sau minRank)
+  for(let i=0;i<n;i++){
+    const cnt = (hands[i]||[]).filter(c => c.rank==='A' || c.rank===minR).length;
+    if(cnt>=4){
+      return { refused:true, refuserIndex:i, capete:cnt, state };
+    }
+  }
+
+  return { refused:false, state };
+}
+
+function rentzLaneCanPlace(lane, card, seed){
+  if(!lane.open) return card.rank===seed;
+  const v = rv(card.rank);
+  const leftOk  = (lane.L!=null && (v===lane.L-1 || v===lane.L+1));
+  const rightOk = (lane.R!=null && (v===lane.R-1 || v===lane.R+1));
+  return leftOk || rightOk;
+}
+
+function rentzAnyPlayable(st, seat){
+  if(st.finished[seat]) return false;
+  if(st.turn !== seat) return false;
+  return (st.hands[seat]||[]).some(c => rentzLaneCanPlace(st.lanes[c.suit], c, st.seed));
+}
+
+function rentzNextAlive(st, from){
+  let t = from;
+  for(let k=0;k<4;k++){
+    t = (t+1)%4;
+    if(!st.finished[t]) return t;
+  }
+  return from;
+}
+
+function rentzRemoveFromHand(st, seat, cardId){
+  const h = st.hands[seat]||[];
+  const idx = h.findIndex(c=>c.id===cardId);
+  if(idx>=0) return h.splice(idx,1)[0];
+  return null;
+}
+
+function rentzPlaceOnLane(st, card){
+  const L = st.lanes[card.suit];
+  const v = rv(card.rank);
+  if(!L.open){
+    L.open=true; L.seq=[{rank:card.rank}]; L.L=v; L.R=v;
+    return;
+  }
+  if(v===L.L-1 || v===L.L+1){ L.seq.unshift({rank:card.rank}); L.L=v; return; }
+  if(v===L.R-1 || v===L.R+1){ L.seq.push({rank:card.rank}); L.R=v; return; }
+}
+
+function rentzMaybeFinish(st, seat){
+  if((st.hands[seat]||[]).length===0 && !st.finished[seat]){
+    st.finished[seat] = true;
+    st.orderOut.push(seat);
+  }
+}
+
+function rentzAllEmpty(st){
+  return st.hands.every(h => (h||[]).length===0);
+}
+
+function rentzScoresFromOrder(orderOut){
+  const n=4;
+  const scores = new Array(n).fill(0);
+  for(let pos=0; pos<orderOut.length; pos++){
+    const seat = orderOut[pos];
+    scores[seat] = (n-pos)*100;
+  }
+  return scores;
+}
+
+function rentzStateForSeat(st, seat){
+  // Mask: only your hand is revealed; others are counts.
+  const players = st.players.map(p=>({ seat:p.seat, name:p.name, finished: !!st.finished[p.seat], count: (st.hands[p.seat]||[]).length }));
+  const me = { seat, finished: !!st.finished[seat], hand: (st.hands[seat]||[]).map(c=>({id:c.id, suit:c.suit, rank:c.rank})) };
+  const next = rentzNextAlive(st, st.turn);
+  return {
+    seed: st.seed,
+    minRank: st.minRank,
+    turn: st.turn,
+    next,
+    lanes: st.lanes,
+    players,
+    me,
+  };
+}
+
+function rentzApplyIntent(st, seat, intent){
+  if(st.turn !== seat) return { ok:false, error:'Nu e rândul tău.' };
+  if(st.finished[seat]) return { ok:false, error:'Ești deja terminat.' };
+
+  if(intent.kind==='pass'){
+    // pass only if no playable
+    if(rentzAnyPlayable(st, seat)) return { ok:false, error:'Ai mutări, nu poți da Pas.' };
+    // advance
+    let nxt = rentzNextAlive(st, st.turn);
+    if(st.skipFor!=null && nxt===st.skipFor){ st.skipFor=null; nxt = rentzNextAlive(st, nxt); }
+    st.turn = nxt;
+    return { ok:true };
+  }
+
+  if(intent.kind==='play'){
+    const cardId = Number(intent.cardId);
+    if(!Number.isFinite(cardId)) return { ok:false, error:'Card invalid.' };
+    const card = (st.hands[seat]||[]).find(c=>c.id===cardId);
+    if(!card) return { ok:false, error:'Nu ai cartea asta.' };
+    if(!rentzLaneCanPlace(st.lanes[card.suit], card, st.seed)) return { ok:false, error:'Mutare ilegală.' };
+
+    const removed = rentzRemoveFromHand(st, seat, cardId);
+    if(!removed) return { ok:false, error:'Nu ai cartea asta.' };
+    rentzPlaceOnLane(st, removed);
+
+    // capăt mic => skip next alive
+    if(removed.rank===st.minRank){ st.skipFor = rentzNextAlive(st, seat); }
+
+    rentzMaybeFinish(st, seat);
+
+    // end check
+    if(rentzAllEmpty(st)){
+      for(let i=0;i<4;i++) if(!st.finished[i]){ st.finished[i]=true; st.orderOut.push(i); }
+      return { ok:true, done:true, result:{ orderOut: st.orderOut.slice(), scores: rentzScoresFromOrder(st.orderOut) } };
+    }
+
+    // A bonus: extra turn if still playable else advance
+    const bonus = (removed.rank==='A');
+    if(bonus && rentzAnyPlayable(st, seat)){
+      // keep turn
+      return { ok:true };
+    }
+
+    // advance
+    let nxt = rentzNextAlive(st, st.turn);
+    if(st.skipFor!=null && nxt===st.skipFor){ st.skipFor=null; nxt = rentzNextAlive(st, nxt); }
+    st.turn = nxt;
+    return { ok:true };
+  }
+
+  return { ok:false, error:'Intent necunoscut.' };
+}
+
 // --- rooms ---
 // Room code: digits only (easy to dictate, no O/0 ambiguity)
 function code(){
@@ -243,6 +417,8 @@ wss.on('connection', (ws) => {
       room.seed = (Date.now() ^ Math.floor(Math.random()*1e9)) >>> 0;
       const dealt = dealState(room.seed);
       room.hands = dealt.hands;
+      room.rentz = null;
+      room.currentGame = null;
 
       // send init_state personalized (clients run full game locally)
       for(const p of room.players){
@@ -274,16 +450,28 @@ wss.on('connection', (ws) => {
       // Store as current round selection ONLY. We will mark it as used on round_end.
       room.currentGame = gameName;
 
-      // Special case: Rentz overlay needs full hands for all seats (it renders lanes/hand UI).
-      // Reveal full hands to all connected players when starting Rentz to avoid 'undefined' cards.
+      // Rentz MP authoritative: server owns the Rentz state and pushes masked state per seat.
       if(gameName === 'Rentz'){
-        try{
-          const hands = (room.hands || []).map(h => (h||[]).map(c=>({id:c.id,suit:c.suit,rank:c.rank})));
-          broadcast(room, { type:'rentz_reveal', hands });
-        }catch(e){}
+        const init = rentzInit(room);
+        if(init.refused){
+          room.currentGame = null;
+          broadcast(room, { type:'rentz_refused', result:{ refused:true, refuserIndex:init.refuserIndex, capete:init.capete } });
+          // keep chooser same; host may trigger redeal_same_chooser.
+          return;
+        }
+        room.rentz = init.state;
+      } else {
+        room.rentz = null;
       }
 
       broadcast(room, { type:'choose_game', gameName, chooserIndex: chooser, chosenGames: room.chosenGames });
+
+      // Immediately push first Rentz state snapshot.
+      if(gameName === 'Rentz'){
+        for(const p of room.players){
+          sendTo(p, { type:'rentz_state', state: rentzStateForSeat(room.rentz, p.seat) });
+        }
+      }
       return;
     }
 
@@ -317,6 +505,8 @@ wss.on('connection', (ws) => {
       room.seed = (Date.now() ^ Math.floor(Math.random()*1e9)) >>> 0;
       const dealt = dealState(room.seed);
       room.hands = dealt.hands;
+      room.rentz = null;
+      room.currentGame = null;
       for(const p of room.players){
         sendTo(p, { type:'init_state', room: roomPublic(room), state: maskedStateFor(room, p) });
       }
@@ -341,10 +531,33 @@ wss.on('connection', (ws) => {
       room.seed = (Date.now() ^ Math.floor(Math.random()*1e9)) >>> 0;
       const dealt = dealState(room.seed);
       room.hands = dealt.hands;
+      room.rentz = null;
+      room.currentGame = null;
       for(const p of room.players){
         sendTo(p, { type:'init_state', room: roomPublic(room), state: maskedStateFor(room, p) });
       }
       broadcast(room, { type:'round_started', chooserIndex: room.chooserIndex, chosenGames: room.chosenGames });
+      return;
+    }
+
+    if(msg.type === 'rentz_intent'){
+      if(!room.started) return;
+      if(room.currentGame !== 'Rentz' || !room.rentz) return;
+      const action = msg.action || {};
+      const intent = { kind: String(action.kind||''), cardId: action.cardId };
+      const res = rentzApplyIntent(room.rentz, player.seat, intent);
+      if(!res.ok){
+        return sendTo(player, { type:'error', message: res.error || 'Acțiune invalidă.' });
+      }
+
+      // Push updated state to all seats
+      for(const p of room.players){
+        sendTo(p, { type:'rentz_state', state: rentzStateForSeat(room.rentz, p.seat) });
+      }
+
+      if(res.done){
+        broadcast(room, { type:'rentz_done', result: res.result });
+      }
       return;
     }
 

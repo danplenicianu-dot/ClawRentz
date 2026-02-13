@@ -1,40 +1,46 @@
-
-/*! rentz-app-v310.js — mini-app lanes */
+/*! rentz-app-v320.js — MP-safe renderer (NO local simulation) */
 (function(){
   const RV = {'3':3,'4':4,'5':5,'6':6,'7':7,'8':8,'9':9,'10':10,'J':11,'Q':12,'K':13,'A':14};
   const orderSuits = '♠♣♥♦';
   const val = r => RV[r]||0;
-  let P = null;
 
-  function bySuitOrder(a,b){ return orderSuits.indexOf(a.suit) - orderSuits.indexOf(b.suit) || (val(a.rank)-val(b.rank)); }
-  function seedRank(n){ return (n<=3)?'J':(n===4?'10':'9'); }
-  function minRank(n){ return (n<=3)?'9':(n===4?'7':(n===5?'5':'3')); }
+  let S = null; // authoritative state view pushed by parent
+
   function post(type, payload){ try{ parent.postMessage({type, ...payload}, '*'); }catch(e){} }
-
-  // signal ready to parent
   post('rentz:ready', {});
 
   window.addEventListener('message', (ev)=>{
     const d = ev.data||{};
-    if(d.type==='rentz:init'){ start(d.payload); }
-    if(d.type==='rentz:reset'){ reset(); }
+    if(d.type==='rentz:init'){
+      // init can carry myIndex and initial state snapshot
+      if(d.payload && d.payload.state) setState(d.payload.state);
+      return;
+    }
+    if(d.type==='rentz:state'){
+      setState(d.state);
+      return;
+    }
+    if(d.type==='rentz:reset') reset();
   }, false);
 
   function reset(){
     document.querySelectorAll('.cards').forEach(c=>c.textContent='');
-    document.getElementById('hand').textContent='';
-    document.getElementById('turnInfo').textContent='';
-    P = null;
+    const h = document.getElementById('hand');
+    if(h) h.textContent='';
+    const t = document.getElementById('turnInfo');
+    if(t) t.textContent='';
+    S = null;
+    const pb = document.getElementById('btnPass');
+    if(pb) pb.style.display='none';
   }
 
-  function mkCardEl(txt){
-    // accept '10♠' string or object {rank:'10', suit:'♠'}
-    let rank='?', suit='♠';
-    if(txt && typeof txt==='object'){ rank=txt.rank; suit=txt.suit; }
-    else if(typeof txt==='string'){
-      suit = txt.slice(-1);
-      rank = txt.slice(0, txt.length-1);
-    }
+  function bySuitOrder(a,b){
+    return orderSuits.indexOf(a.suit) - orderSuits.indexOf(b.suit) || (val(a.rank)-val(b.rank));
+  }
+
+  function mkCardEl(card){
+    const rank = card.rank;
+    const suit = card.suit;
     const d=document.createElement('div');
     d.className='card';
     d.dataset.rank = rank; d.dataset.suit = suit;
@@ -43,227 +49,124 @@
     return d;
   }
 
-  function renderBoard(){
-  if(!P) return;
-  const pivot = 8; // center column (10s)
-  ['♠','♣','♥','♦'].forEach(s=>{
-    const lane = document.querySelector(`.lane[data-suit="${s}"] .cards`);
-    if(!lane) return;
-    lane.textContent='';
-    lane.style.display='grid';
-    lane.style.gridTemplateColumns='repeat(13,44px)';
-    lane.style.justifyContent='center';
-    lane.style.gridAutoFlow='column';
-    lane.style.alignItems='center';
-    lane.style.gap='6px';
-    const L = P.lanes[s];
-    const seq = (L.seq||[]).slice();
-    const seedV = val(P.seed);
-    seq.forEach(c=>{
-      const el = mkCardEl({rank:c.rank, suit:s}); el.classList.add('mini');
-      const pos = pivot + (val(c.rank) - seedV);
-      el.style.gridColumn = String(pos);
-      el.style.gridRow = '1';
-      lane.appendChild(el);
-    });
-    if(!L.open){
-      const ghost = mkCardEl({rank:P.seed, suit:s}); ghost.classList.add('ghost'); ghost.classList.add('mini');
-      ghost.style.gridColumn = String(pivot);
-      ghost.style.gridRow = '1';
-      lane.appendChild(ghost);
-    }
-  });
-}
-function titleTurn(){
-    const i=P.turn; const name=P.players[i].name + (P.players[i].isHuman?' (tu)':'');
-    const nxt = nextAlive(i);
-    const nextName = P.players[nxt].name + (P.players[nxt].isHuman?' (tu)':'');
-    document.getElementById('turnInfo').textContent = 'Rândul: ' + name + ' • Urmează: ' + nextName + '';
+  function setState(state){
+    S = state || null;
+    render();
   }
 
-  function canPlay(i, card){
-    if(!P) return false;
-    if(P.finished[i]) return false;
-    if(i!==P.turn) return false;
-    const L = P.lanes[card.suit];
-    if(!L.open) return card.rank===P.seed;
+  function laneCanPlace(lane, card, seedRank){
+    if(!lane.open) return card.rank===seedRank;
     const v = val(card.rank);
-    const leftOk  = (L.L!==null && (v===L.L-1 || v===L.L+1));
-    const rightOk = (L.R!==null && (v===L.R-1 || v===L.R+1));
+    const leftOk  = (lane.L!=null && (v===lane.L-1 || v===lane.L+1));
+    const rightOk = (lane.R!=null && (v===lane.R-1 || v===lane.R+1));
     return leftOk || rightOk;
   }
 
-  function anyPlayable(i){ return P.hands[i].some(c=>canPlay(i,c)); }
-
-  function removeFromHand(i, card){
-    const h=P.hands[i];
-    let k = -1;
-    for(let t=0;t<h.length;t++){ const x=h[t]; if((x.id!=null && card.id!=null && x.id===card.id) || (x.suit===card.suit && x.rank===card.rank)){ k=t; break; } }
-    if(k>=0) h.splice(k,1);
+  function anyPlayable(){
+    if(!S) return false;
+    const me = S.me;
+    if(me.finished) return false;
+    if(S.turn !== me.seat) return false;
+    return (me.hand||[]).some(c=> laneCanPlace(S.lanes[c.suit], c, S.seed));
   }
 
-  function placeOnLane(card){
-    const L = P.lanes[card.suit]; const v=val(card.rank);
-    if(!L.open){ L.open=true; L.seq=[{suit:card.suit,rank:card.rank}]; L.L=v; L.R=v; }
-    else if(v===L.L-1 || v===L.L+1){ L.seq.unshift({suit:card.suit,rank:card.rank}); L.L=v; }
-    else if(v===L.R-1 || v===L.R+1){ L.seq.push({suit:card.suit,rank:card.rank}); L.R=v; }
-  }
+  function renderBoard(){
+    if(!S) return;
+    const pivot = 8; // center column (10s)
+    ['♠','♣','♥','♦'].forEach(s=>{
+      const laneWrap = document.querySelector(`.lane[data-suit="${s}"] .cards`);
+      if(!laneWrap) return;
+      laneWrap.textContent='';
+      laneWrap.style.display='grid';
+      laneWrap.style.gridTemplateColumns='repeat(13,44px)';
+      laneWrap.style.justifyContent='center';
+      laneWrap.style.gridAutoFlow='column';
+      laneWrap.style.alignItems='center';
+      laneWrap.style.gap='6px';
 
-  function nextAlive(from){
-    const n=P.players.length; let t=from;
-    for(let k=0;k<n;k++){ t=(t+1)%n; if(!P.finished[t]) return t; }
-    return from;
-  }
-
-  function maybeFinish(i){
-    if(P.hands[i].length===0 && !P.finished[i]){ P.finished[i]=true; P.orderOut.push(i); }
-  }
-
-  
-  function renderResultsHTML(orderOut, scores, players){
-    // Build a simple results overlay
-    let rows = '';
-    for(let i=0;i<players.length;i++){
-      const name = players[i].name + (players[i].isHuman?' (tu)':'');
-      const sc = (scores[i]||0);
-      let pos = orderOut.indexOf(i);
-      pos = (pos>=0)? (pos+1) : '-';
-      rows += `<div class="rr-row"><span class="rr-name">${name}</span><span class="rr-pos">#${pos}</span><span class="rr-score">${sc}</span></div>`;
-    }
-    return `<div class="rr-overlay">
-      <div class="rr-card">
-        <div class="rr-title">Rentz încheiat</div>
-        <div class="rr-sub">Rezultatul subjocului</div>
-        <div class="rr-table">${rows}</div>
-        <button class="rr-btn" data-continue>Continuă</button>
-      </div>
-    </div>`;
-  }
-function allEmpty(){ return P.hands.every(h=>h.length===0); }
-
-  function endIfDone(){
-    if(!allEmpty()) return false;
-    const n=P.players.length;
-    for(let i=0;i<n;i++){ if(!P.finished[i]){ P.finished[i]=true; P.orderOut.push(i); } }
-    const scores=new Array(n).fill(0);
-    for(let pos=0;pos<P.orderOut.length;pos++){ const pi=P.orderOut[pos]; scores[pi]=(n-pos)*100; }
-    post('rentz:done', {result:{orderOut:P.orderOut, scores, seed:P.seed, minRank:P.minRank}});
-    return true;
-  }
-
-  function advance(){
-    let nxt = nextAlive(P.turn);
-    if(P.skipFor!=null && nxt===P.skipFor){ P.skipFor=null; nxt = nextAlive(nxt); }
-    P.turn = nxt;
-    renderHand(); titleTurn();
-    if(!P.players[P.turn].isHuman) setTimeout(botStep, 220);
-  }
-
-  function playCard(i, card){
-    if(!canPlay(i, card)) return;
-    removeFromHand(i, card);
-    placeOnLane(card);
-    const bonus = (card.rank==='A');
-    if(card.rank===P.minRank){ P.skipFor = nextAlive(i); } // capăt mic = skip
-    renderBoard();
-    maybeFinish(i);
-    if(endIfDone()) return;
-    if(bonus){
-      if(anyPlayable(i)){ renderHand(); titleTurn(); if(!P.players[i].isHuman) setTimeout(botStep, 200); }
-      else { advance(); }
-    } else {
-      advance();
-    }
-  }
-
-  function playableList(i){ return P.hands[i].filter(c=>canPlay(i,c)); }
-
-  function botPick(i){
-    const list = playableList(i);
-    if(!list.length) return null;
-    const a = list.find(c=>c.rank==='A'); if(a) return a;
-    const seeds = list.filter(c=>c.rank===P.seed);
-    if(seeds.length){
-      let best=seeds[0], bestCount=-1;
-      for(const s of seeds){
-        const cont = P.hands[i].filter(x=>x.suit===s.suit && Math.abs(val(x.rank)-val(s.rank))===1).length;
-        if(cont>bestCount){ bestCount=cont; best=s; }
+      const L = S.lanes[s];
+      const seq = (L.seq||[]).slice();
+      const seedV = val(S.seed);
+      seq.forEach(c=>{
+        const el = mkCardEl({rank:c.rank, suit:s});
+        el.classList.add('mini');
+        const pos = pivot + (val(c.rank) - seedV);
+        el.style.gridColumn = String(pos);
+        el.style.gridRow = '1';
+        laneWrap.appendChild(el);
+      });
+      if(!L.open){
+        const ghost = mkCardEl({rank:S.seed, suit:s});
+        ghost.classList.add('ghost','mini');
+        ghost.style.gridColumn = String(pivot);
+        ghost.style.gridRow = '1';
+        laneWrap.appendChild(ghost);
       }
-      return best;
-    }
-    list.sort((a,b)=> val(a.rank)-val(b.rank));
-    const k = Math.random()<0.25 && list.length>1 ? 1 : 0;
-    return list[k];
+    });
   }
 
-  function botStep(){
-    const c = botPick(P.turn);
-    if(!c){ advance(); return; }
-    playCard(P.turn, c);
+  function renderTurnInfo(){
+    if(!S) return;
+    const t = document.getElementById('turnInfo');
+    if(!t) return;
+    const cur = S.players.find(p=>p.seat===S.turn);
+    const nxt = S.players.find(p=>p.seat===S.next);
+    const curName = cur ? cur.name : ('P'+(S.turn+1));
+    const nxtName = nxt ? nxt.name : ('P'+(S.next+1));
+    t.textContent = `Rândul: ${curName} • Urmează: ${nxtName}`;
   }
 
   function renderHand(){
-    const wrap = document.getElementById('hand'); wrap.textContent='';
-    const i=P.turn;
-    const mine = P.hands[i].slice().sort(bySuitOrder);
-    mine.forEach(c=>{
-      const el = mkCardEl(c); el.classList.add('hand');
-      const ok = P.players[i].isHuman && canPlay(i,c);
+    if(!S) return;
+    const wrap = document.getElementById('hand');
+    if(!wrap) return;
+    wrap.textContent='';
+
+    const me = S.me;
+    const myHand = (me.hand||[]).slice().sort(bySuitOrder);
+    const myTurn = (S.turn === me.seat) && !me.finished;
+
+    myHand.forEach(c=>{
+      const el = mkCardEl(c);
+      el.classList.add('hand');
+
+      const ok = myTurn && laneCanPlace(S.lanes[c.suit], c, S.seed);
       if(ok){
         el.classList.add('playable');
         el.classList.remove('dim');
-        el.addEventListener('click', ()=> playCard(i,c));
-      } else {
+        el.addEventListener('click', ()=>{
+          post('rentz:action', { action:{ kind:'play', cardId:c.id } });
+        });
+      }else{
         el.classList.remove('playable');
         el.classList.add('dim');
       }
       wrap.appendChild(el);
     });
-    // Human: no auto-pass. Show a "Pas" button when nothing is playable.
-    if(P.players[i].isHuman && !anyPlayable(i)){
-      let pb = document.getElementById('btnPass');
+
+    // Pass button when it's your turn and nothing is playable
+    const needPass = myTurn && !anyPlayable();
+    let pb = document.getElementById('btnPass');
+    if(needPass){
       if(!pb){
         pb = document.createElement('button');
         pb.id = 'btnPass';
         pb.className = 'btn';
-        pb.style.cssText = 'position:fixed;left:50%;bottom:18px;transform:translateX(-50%);z-index:10;padding:10px 14px;border-radius:12px;border:1px solid rgba(255,255,255,.18);background:rgba(0,0,0,.55);color:#fff;font-weight:800;cursor:pointer;';
+        pb.style.cssText = 'position:fixed;left:50%;bottom:18px;transform:translateX(-50%);z-index:10;padding:10px 14px;border-radius:12px;border:1px solid rgba(0,0,0,.12);background:rgba(255,255,255,.88);backdrop-filter: blur(14px);-webkit-backdrop-filter: blur(14px);color:#111;font-weight:900;cursor:pointer;';
         pb.textContent = 'Pas';
         document.body.appendChild(pb);
       }
-      pb.style.display = 'inline-block';
-      pb.onclick = ()=>{ try{ pb.style.display='none'; }catch(e){} advance(); };
+      pb.style.display='inline-block';
+      pb.onclick = ()=> post('rentz:action', { action:{ kind:'pass' } });
     } else {
-      const pb = document.getElementById('btnPass');
-      if(pb) pb.style.display = 'none';
+      if(pb) pb.style.display='none';
     }
-}
-
-function start(payload){
-    const n = payload.players.length;
-    P = {
-      players: payload.players.map((p,i)=>({name:p.name||('P'+(i+1)), isHuman:!!p.isHuman})),
-      hands: payload.hands.map(h => (h||[]).slice().sort(bySuitOrder)),
-      seed: payload.seed || seedRank(n),
-      minRank: payload.minRank || minRank(n),
-      turn: payload.chooserIndex|0,
-      finished: new Array(n).fill(false),
-      orderOut: [], skipFor: null,
-      lanes: {'♠':{open:false,seq:[],L:null,R:null}, '♣':{open:false,seq:[],L:null,R:null}, '♥':{open:false,seq:[],L:null,R:null}, '♦':{open:false,seq:[],L:null,R:null}}
-    };
-    // Refuz Rentz: dacă un jucător are ≥4 capete (A sau minRank), se refuză și se face redeal.
-    // IMPORTANT: parent handles toast + redeal flow.
-    for(let i=0;i<n;i++){
-      const cnt = P.hands[i].filter(c => c.rank==='A' || c.rank===P.minRank).length;
-      if(cnt>=4){
-        setTimeout(()=> post('rentz:done', {result:{refused:true, refuserIndex:i, capete:cnt}}), 50);
-        return;
-      }
-    }
-    renderBoard(); renderHand(); titleTurn();
-    if(!P.players[P.turn].isHuman) setTimeout(botStep, 260);
   }
 
-  document.getElementById('btnLeave').addEventListener('click', ()=>{
-    post('rentz:done', {result:{refused:true}});
-  });
+  function render(){
+    if(!S) return;
+    renderBoard();
+    renderTurnInfo();
+    renderHand();
+  }
 })();

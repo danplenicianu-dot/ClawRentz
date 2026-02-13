@@ -792,21 +792,34 @@
       return;
     }
 
-    if(msg.type==='rentz_reveal'){
+    if(msg.type==='rentz_state'){
+      // Authoritative state from server. Forward to overlay iframe renderer.
       try{
-        const st = window.__state;
-        const hands = msg.hands || [];
-        if(st && st.players && hands.length){
-          for(let realSeat=0; realSeat<4; realSeat++){
-            const localSeat = toLocalSeat(realSeat);
-            const full = (hands[realSeat]||[]).map(c=>({id:c.id,suit:c.suit,rank:c.rank}));
-            st.players[localSeat].hand = full;
-          }
-          // keep names from room/state; do not overwrite seat 0 with cached name
-          syncSeatLabels();
-          if(typeof window.renderHands==='function') window.renderHands();
-        }
+        if(typeof window.__rentzSetState === 'function') window.__rentzSetState(msg.state);
       }catch(e){}
+      return;
+    }
+
+    if(msg.type==='rentz_refused'){
+      // Normalize to existing flow.
+      try{ window.dispatchEvent(new CustomEvent('rentzRefused', { detail: msg.result || {} })); }catch(e){}
+      try{ if(typeof window.__rentzClose==='function') window.__rentzClose(); }catch(e){}
+      return;
+    }
+
+    if(msg.type==='rentz_done'){
+      // Apply scores locally (server-authoritative) and close overlay.
+      try{
+        const scores = (msg.result && msg.result.scores) ? msg.result.scores : [];
+        const S = window.__state || (window.__state = {});
+        const n = (S.players && S.players.length) ? S.players.length : 4;
+        S.totals = S.totals || new Array(n).fill(0);
+        for(let i=0;i<n;i++) S.totals[i] += Number(scores[i]||0);
+        S.lastScores = scores.slice();
+        if(typeof window.updateLeftScorePanel==='function') window.updateLeftScorePanel();
+        if(typeof window.showRoundSummary==='function') window.showRoundSummary({title:'Rentz', scores});
+      }catch(e){}
+      try{ if(typeof window.__rentzClose==='function') window.__rentzClose(); }catch(e){}
       return;
     }
 
@@ -826,15 +839,8 @@
 
       try{
         if(gameName === 'Rentz'){
-          // Prefer the official hook (rentz-overlay wraps __choose). If it fails, force-open.
-          try{ if(typeof window.__choose === 'function') window.__choose('Rentz'); }catch(e){}
-          setTimeout(()=>{
-            try{
-              const ol = document.getElementById('rentzOverlay');
-              const shown = !!(ol && ol.classList.contains('show') && !ol.hidden);
-              if(!shown) forceOpenRentzOverlay();
-            }catch(e){}
-          }, 120);
+          // MP authoritative: open overlay; state will arrive via rentz_state messages.
+          if(typeof window.__rentzOpen === 'function') window.__rentzOpen();
         } else {
           if(typeof window.__choose === 'function') window.__choose(gameName);
         }
@@ -884,6 +890,18 @@
         if(you && you.realSeat===0){
           wsSend({type:'redeal_same_chooser'});
         }
+      }catch(e){}
+    });
+  }
+
+  // Forward authoritative Rentz actions from iframe -> server
+  if(!window.__mpRentzActionHook){
+    window.__mpRentzActionHook = true;
+    window.addEventListener('rentzAction', (ev)=>{
+      try{
+        const action = ev.detail || null;
+        if(!action) return;
+        wsSend({ type:'rentz_intent', action });
       }catch(e){}
     });
   }

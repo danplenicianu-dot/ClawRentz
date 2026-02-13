@@ -919,15 +919,23 @@
 
     if(msg.type==='rentz_done'){
       // Apply scores locally (server-authoritative) and close overlay.
+      // IMPORTANT: server scores are in REAL seat order. Convert to LOCAL seat order.
       try{
-        const scores = (msg.result && msg.result.scores) ? msg.result.scores : [];
+        const scoresReal = (msg.result && msg.result.scores) ? msg.result.scores : [];
         const S = window.__state || (window.__state = {});
         const n = (S.players && S.players.length) ? S.players.length : 4;
         S.totals = S.totals || new Array(n).fill(0);
-        for(let i=0;i<n;i++) S.totals[i] += Number(scores[i]||0);
-        S.lastScores = scores.slice();
+
+        const scoresLocal = new Array(n).fill(0);
+        for(let realSeat=0; realSeat<n; realSeat++){
+          const localSeat = toLocalSeat(realSeat);
+          const v = Number(scoresReal[realSeat]||0);
+          scoresLocal[localSeat] = v;
+          S.totals[localSeat] += v;
+        }
+        S.lastScores = scoresLocal.slice();
         if(typeof window.updateLeftScorePanel==='function') window.updateLeftScorePanel();
-        if(typeof window.showRoundSummary==='function') window.showRoundSummary({title:'Rentz', scores});
+        if(typeof window.showRoundSummary==='function') window.showRoundSummary({title:'Rentz', scores: scoresLocal});
       }catch(e){}
       try{ if(typeof window.__rentzClose==='function') window.__rentzClose(); }catch(e){}
       return;

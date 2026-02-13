@@ -482,8 +482,25 @@
       const ol = document.getElementById('rentzOverlay');
       const frame = document.getElementById('rentzFrame');
       if(!ol || !frame) return;
+
+      // Ensure names are synced before building payload
+      try{ syncNamesFromRoom(); }catch(e){}
+
       const S = window.__state || {};
-      const players = (S.players||[]).map(p=>({name:p.name||'—', isHuman:!!p.isHuman}));
+
+      // Prefer room-mapped names to avoid any phantom defaults
+      let players;
+      try{
+        if(room && you && Number.isFinite(you.realSeat)){
+          players = [0,1,2,3].map(localSeat=>{
+            const realSeat = toRealSeat(localSeat);
+            const p = (room.players||[]).find(x=>x.seat===realSeat) || {};
+            return { name: p.name || (S.players?.[localSeat]?.name) || '—', isHuman: localSeat===0 };
+          });
+        }
+      }catch(e){}
+      if(!players) players = (S.players||[]).map((p,idx)=>({name:p.name||'—', isHuman: idx===0}));
+
       const hands = (S.players||[]).map(p=>(p.hand||[]).map(c=>({id:c.id, suit:c.suit, rank:c.rank})));
       const chooserIndex = (S.chooserIndex|0);
       const payload = { players, hands, chooserIndex, seed:'10', minRank:'7' };

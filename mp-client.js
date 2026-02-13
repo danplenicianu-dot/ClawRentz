@@ -60,37 +60,70 @@
     el.id = 'mpOverlay';
     el.style.cssText = `position:fixed;inset:0;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;z-index:9999;`;
     el.innerHTML = `
-      <div style="background:#111;color:#fff;border:1px solid rgba(255,255,255,.12);border-radius:16px;padding:18px;min-width:320px;max-width:92vw;font-family:system-ui">
-        <div style="font-weight:700;font-size:18px;margin-bottom:10px;">Rentz Multiplayer</div>
-        <div style="font-size:13px;opacity:.85;margin-bottom:12px;">Fără cont • 4 prieteni • cod cameră</div>
+      <style>
+        .iosCard{background:rgba(20,20,22,.92);color:#fff;border:1px solid rgba(255,255,255,.10);border-radius:20px;padding:16px;min-width:320px;max-width:92vw;font-family:-apple-system,system-ui,Segoe UI,Roboto,Arial;backdrop-filter: blur(14px);-webkit-backdrop-filter: blur(14px)}
+        .iosTitle{font-weight:700;font-size:17px;letter-spacing:-0.01em;margin:0 0 10px}
+        .iosSub{font-size:13px;opacity:.75;margin:0 0 14px}
+        .iosSeg{display:flex;gap:6px;background:rgba(255,255,255,.08);padding:6px;border-radius:14px;margin-bottom:14px}
+        .iosSeg button{flex:1;border:0;background:transparent;color:#fff;padding:9px 10px;border-radius:12px;font-weight:700;opacity:.8;cursor:pointer}
+        .iosSeg button.active{background:rgba(255,255,255,.14);opacity:1}
+        .iosField{display:flex;flex-direction:column;gap:6px;margin:0 0 12px}
+        .iosLabel{font-size:12px;opacity:.7}
+        .iosInput,.iosSelect{width:100%;padding:11px 12px;border-radius:14px;border:1px solid rgba(255,255,255,.12);background:rgba(0,0,0,.35);color:#fff;outline:none}
+        .iosRow{display:flex;gap:10px;align-items:flex-end}
+        .iosBtn{width:100%;padding:12px 14px;border-radius:16px;border:0;background:#0A84FF;color:#fff;font-weight:800;cursor:pointer}
+        .iosBtn.secondary{background:rgba(255,255,255,.10);border:1px solid rgba(255,255,255,.14)}
+        .iosTiny{font-size:12px;opacity:.7;margin-top:10px;line-height:1.3}
+        .iosStatus{margin-top:10px;font-size:12px;opacity:.85}
+        .iosShareRow{display:flex;gap:10px;flex-wrap:wrap;margin-top:10px}
+        .iosShareRow button{flex:1;min-width:140px}
+      </style>
 
-        <label style="display:block;font-size:12px;opacity:.8">Nume</label>
-        <input id="mpName" style="width:100%;padding:10px;border-radius:10px;border:1px solid rgba(255,255,255,.18);background:#0b0b0b;color:#fff;margin:6px 0 10px" placeholder="Numele tău" />
+      <div class="iosCard">
+        <div class="iosTitle">Rentz Multiplayer</div>
+        <div class="iosSub">Fără cont • cod numeric • share rapid</div>
 
-        <div style="display:flex;gap:8px;align-items:flex-end;">
-          <div style="flex:1">
-            <label style="display:block;font-size:12px;opacity:.8">Cod cameră</label>
-            <input id="mpCode" style="width:100%;padding:10px;border-radius:10px;border:1px solid rgba(255,255,255,.18);background:#0b0b0b;color:#fff;margin-top:6px" placeholder="ex: 123456" inputmode="numeric" />
-          </div>
-          <div style="width:128px">
-            <label style="display:block;font-size:12px;opacity:.8">Oameni</label>
-            <select id="mpHumans" style="width:100%;padding:10px;border-radius:10px;border:1px solid rgba(255,255,255,.18);background:#0b0b0b;color:#fff;margin-top:6px">
-              <option value="4" selected>4</option>
-              <option value="3">3</option>
-              <option value="2">2</option>
-              <option value="1">1</option>
-            </select>
-          </div>
-          <button id="mpCreate" style="padding:10px 12px;border-radius:10px;border:0;background:#2d6cdf;color:#fff;font-weight:700;cursor:pointer">Creează</button>
-          <button id="mpJoin" style="padding:10px 12px;border-radius:10px;border:0;background:#333;color:#fff;font-weight:700;cursor:pointer">Intră</button>
+        <div class="iosSeg">
+          <button id="mpTabCreate" class="active" type="button">Creează</button>
+          <button id="mpTabJoin" type="button">Intră</button>
         </div>
 
-        <div id="mpStatus" style="margin-top:12px;font-size:12px;opacity:.9"></div>
-        <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
-          <button id="mpShare" style="padding:9px 12px;border-radius:10px;border:1px solid rgba(255,255,255,.15);background:#1f2937;color:#fff;font-weight:700;cursor:pointer;display:none;">Partajează pe WhatsApp</button>
-          <button id="mpCopy" style="padding:9px 12px;border-radius:10px;border:1px solid rgba(255,255,255,.15);background:#0b0b0b;color:#fff;font-weight:700;cursor:pointer;display:none;">Copiază link</button>
+        <div class="iosField">
+          <div class="iosLabel">Nume</div>
+          <input id="mpName" class="iosInput" placeholder="Numele tău" />
         </div>
-        <div style="margin-top:10px;font-size:12px;opacity:.65">Tip: poți da și link direct cu camera (are parametru <code>?room=</code>).</div>
+
+        <div id="mpPaneCreate">
+          <div class="iosRow">
+            <div class="iosField" style="flex:1">
+              <div class="iosLabel">Oameni</div>
+              <select id="mpHumans" class="iosSelect">
+                <option value="4" selected>4</option>
+                <option value="3">3</option>
+                <option value="2">2</option>
+                <option value="1">1</option>
+              </select>
+            </div>
+          </div>
+          <button id="mpCreate" class="iosBtn" type="button">Creează cameră</button>
+        </div>
+
+        <div id="mpPaneJoin" style="display:none">
+          <div class="iosField">
+            <div class="iosLabel">Cod cameră</div>
+            <input id="mpCode" class="iosInput" placeholder="123456" inputmode="numeric" />
+          </div>
+          <button id="mpJoin" class="iosBtn" type="button">Intră în cameră</button>
+        </div>
+
+        <div id="mpStatus" class="iosStatus"></div>
+
+        <div class="iosShareRow">
+          <button id="mpShare" class="iosBtn" type="button" style="display:none">Partajează pe WhatsApp</button>
+          <button id="mpCopy" class="iosBtn secondary" type="button" style="display:none">Copiază link</button>
+        </div>
+
+        <div class="iosTiny">Tip: poți trimite link direct cu camera (are parametru <code>?room=</code>).</div>
       </div>
     `;
     document.body.appendChild(el);
@@ -100,6 +133,21 @@
     const initialName = (qpName && qpName.trim()) ? qpName.trim().slice(0,20) : savedName;
     $('#mpName', el).value = initialName;
     if(initialName) sessionStorage.setItem('mp.name', initialName);
+
+    // Tabs
+    const tabCreate = $('#mpTabCreate', el);
+    const tabJoin = $('#mpTabJoin', el);
+    const paneCreate = $('#mpPaneCreate', el);
+    const paneJoin = $('#mpPaneJoin', el);
+    function setTab(which){
+      const isCreate = which==='create';
+      if(tabCreate) tabCreate.classList.toggle('active', isCreate);
+      if(tabJoin) tabJoin.classList.toggle('active', !isCreate);
+      if(paneCreate) paneCreate.style.display = isCreate ? '' : 'none';
+      if(paneJoin) paneJoin.style.display = !isCreate ? '' : 'none';
+    }
+    if(tabCreate) tabCreate.onclick = ()=>setTab('create');
+    if(tabJoin) tabJoin.onclick = ()=>setTab('join');
 
     $('#mpCreate', el).onclick = () => {
       const name = $('#mpName', el).value.trim() || 'Player';
@@ -394,10 +442,20 @@
     origPlayCard = window.playCard;
     window.playCard = function(i, card){
       if(!you || !room) return;
-      // In local indexing, YOU are always seat 0 (bottom)
-      if(i !== 0) return;
-      // send full card so server can broadcast without keeping authoritative deck state
-      wsSend({type:'play_card', card: { id: card.id, suit: card.suit, rank: card.rank }});
+
+      // If this is YOUR play (local seat 0), send normal play.
+      if(i === 0){
+        wsSend({type:'play_card', card: { id: card.id, suit: card.suit, rank: card.rank }});
+        return;
+      }
+
+      // Bot support: on host, allow bot seats to play by sending bot_play with REAL seat.
+      try{
+        if(you.realSeat===0){
+          const seatReal = toRealSeat(i);
+          wsSend({type:'bot_play', seat: seatReal, card: { id: card.id, suit: card.suit, rank: card.rank }});
+        }
+      }catch(e){}
     };
 
     // expose setActiveSeat if present (added by patch in index.html)

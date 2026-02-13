@@ -275,6 +275,20 @@ wss.on('connection', (ws) => {
       broadcast(room, { type:'play_card', seat: player.seat, card });
       return;
     }
+
+    if(msg.type === 'bot_play'){
+      if(!room.started) return;
+      // Host-only: allow the host (seat 0) to play on behalf of bot seats.
+      if(player.seat !== 0) return;
+      const seat = Number(msg.seat);
+      if(!Number.isFinite(seat) || seat < 0 || seat > 3) return;
+      const c = msg.card || {};
+      const card = { id: Number(c.id), suit: String(c.suit||''), rank: String(c.rank||'') };
+      if(!Number.isFinite(card.id)) return;
+      console.log('[bot_play]', room.code, 'botSeat', seat, 'cardId', card.id);
+      broadcast(room, { type:'play_card', seat, card });
+      return;
+    }
   });
 
   ws.on('close', () => {

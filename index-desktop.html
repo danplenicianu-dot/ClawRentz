@@ -383,6 +383,8 @@ window.updateLeftScorePanel = updateLeftScorePanel;
         };
       });
     }
+    // expose for multiplayer patch
+    window.populateSelector = populateSelector;
     
     function chooseGameForBot(chooser){
       const hand = state.players[chooser].hand || [];
@@ -1607,6 +1609,6 @@ try{ if (typeof chooseGameForBot==='function') window.chooseGameForBot = chooseG
 <!-- === /CHAT PANEL === -->
 
 <script>window.MP_WS_URL='wss://clawrentz.onrender.com';</script>
-<script src="./mp-client.js?v=31"></script>
+<script src="./mp-client.js?v=32"></script>
 </body>
 </html>

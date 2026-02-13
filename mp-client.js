@@ -437,9 +437,22 @@
       }catch(e){}
       // only HOST (real seat 0) asks server to start next round; others just wait
       if(you && you.realSeat===0){
+        try{ wsSend({type:'round_end', gameName: window.__state?.gameName || ''}); }catch(e){}
         wsSend({type:'next_round'});
       }
     };
+
+    // Also hook finalizeRound to sync names before summary draws
+    try{
+      if(!window.__mpFinalWrap && typeof window.finalizeRound==='function'){
+        window.__mpFinalWrap = true;
+        const _fin = window.finalizeRound;
+        window.finalizeRound = function(){
+          try{ syncNamesFromRoom(); }catch(e){}
+          return _fin.apply(this, arguments);
+        };
+      }
+    }catch(e){}
 
     // Hook selector buttons instead of overriding window.__choose.
     // Overriding __choose breaks the Rentz overlay which relies on wrapping __choose.
@@ -767,20 +780,19 @@
       try{ const sel=document.getElementById('selector'); if(sel && (window.__state?.chooserIndex||0)!==0){ sel.classList.add('hidden'); sel.style.display='none'; } }catch(e){}
 
       // Apply locally without rebroadcast.
-      // Apply locally without rebroadcast.
       try{
         if(gameName === 'Rentz'){
-          // For Rentz, avoid triggering any legacy "schelet" UI; open overlay directly.
           forceOpenRentzOverlay();
         } else {
           if(typeof window.__choose === 'function') window.__choose(gameName);
         }
       }catch(e){}
 
-      // Ensure Rentz overlay is actually visible
-      if(gameName === 'Rentz'){
-        setTimeout(()=>{ try{ forceOpenRentzOverlay(); }catch(e){} }, 120);
-      }
+      return;
+    }
+
+    if(msg.type==='chosen_update'){
+      try{ if(msg.chosenGames) syncChosenFromServer(msg.chosenGames); }catch(e){}
       return;
     }
 

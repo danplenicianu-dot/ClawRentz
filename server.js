@@ -266,11 +266,13 @@ wss.on('connection', (ws) => {
       if(!room.chosenGames) room.chosenGames = Array.from({length:4}, ()=>[]);
       if(!Array.isArray(room.chosenGames[chooser])) room.chosenGames[chooser] = [];
 
+      // Prevent choosing a game already USED by this chooser.
       if(room.chosenGames[chooser].includes(gameName)){
         return sendTo(player, {type:'error', message:`Ai ales deja „${gameName}”. Alege alt sub-joc.`});
       }
 
-      room.chosenGames[chooser].push(gameName);
+      // Store as current round selection ONLY. We will mark it as used on round_end.
+      room.currentGame = gameName;
 
       // Special case: Rentz overlay needs full hands for all seats (it renders lanes/hand UI).
       // Reveal full hands to all connected players when starting Rentz to avoid 'undefined' cards.
@@ -282,14 +284,28 @@ wss.on('connection', (ws) => {
       }
 
       broadcast(room, { type:'choose_game', gameName, chooserIndex: chooser, chosenGames: room.chosenGames });
+      return;
+    }
+
+    if(msg.type === 'round_end'){
+      if(player.seat !== 0) return; // host only
+      if(!room.started) return;
+      const gameName = String(msg.gameName || room.currentGame || '');
+      const chooser = (room.chooserIndex ?? 0);
+      if(!room.chosenGames) room.chosenGames = Array.from({length:4}, ()=>[]);
+      if(gameName && !room.chosenGames[chooser].includes(gameName)){
+        room.chosenGames[chooser].push(gameName);
+      }
+      room.currentGame = null;
+
+      // broadcast chosenGames update
+      broadcast(room, { type:'chosen_update', chosenGames: room.chosenGames, chooserIndex: chooser });
 
       // End condition: when everyone exhausted all subgames.
       const ALL = ['Carouri','Dame','Popa Roșu','10 Trefla','Whist','Totale','Rentz'];
       try{
         const done = (room.chosenGames||[]).every(list => ALL.every(g => (list||[]).includes(g)));
-        if(done){
-          broadcast(room, { type:'game_over' });
-        }
+        if(done){ broadcast(room, { type:'game_over' }); }
       }catch(e){}
       return;
     }

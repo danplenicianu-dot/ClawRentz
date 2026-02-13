@@ -248,6 +248,20 @@
     return b;
   }
 
+  function syncNamesFromRoom(){
+    try{
+      if(!room || !you || !window.__state || !window.__state.players) return;
+      // room.players[*].seat are REAL seats.
+      for(const p of (room.players||[])){
+        const localSeat = toLocalSeat(p.seat);
+        if(window.__state.players[localSeat]) window.__state.players[localSeat].name = p.name;
+      }
+      // keep local seat name stable
+      if(you?.name && window.__state.players[0]) window.__state.players[0].name = you.name;
+      syncSeatLabels();
+    }catch(e){}
+  }
+
   function applyRoomPublic(r){
     room = r;
 
@@ -370,16 +384,11 @@
       }catch(e){}
     }
 
-    // Keep left leaderboard in sync even if some flows bypass finalizeRound hooks
+    // Keep names + leaderboard in sync even if some flows bypass hooks
     if(!window.__mpScoreLoop){
       window.__mpScoreLoop = setInterval(()=>{
         try{
-          if(you?.name && window.__state?.players?.[0]){
-            window.__state.players[0].name = you.name;
-            const bn = document.querySelector('.seat-bottom .seat-name');
-            if(bn) bn.textContent = you.name;
-          }
-          syncSeatLabels();
+          syncNamesFromRoom();
           if(typeof window.updateLeftScorePanel==='function') window.updateLeftScorePanel();
         }catch(e){}
       }, 1000);
@@ -433,16 +442,23 @@
     // Overriding __choose breaks the Rentz overlay which relies on wrapping __choose.
     origChoose = window.__choose;
 
-    function openRentzLocally(){
-      try{
-        // Prefer dedicated handler if present
-        if(typeof window.handleRentzSelection === 'function') return window.handleRentzSelection();
-      }catch(e){}
-      try{
-        // Fallback: call current __choose (may be wrapped by rentz-overlay.js)
-        if(typeof window.__choose === 'function') return window.__choose('Rentz');
-      }catch(e){}
-    }
+    function forceOpenRentzOverlay(){
+    try{
+      const ol = document.getElementById('rentzOverlay');
+      const frame = document.getElementById('rentzFrame');
+      if(!ol || !frame) return;
+      const S = window.__state || {};
+      const players = (S.players||[]).map(p=>({name:p.name||'—', isHuman:!!p.isHuman}));
+      const hands = (S.players||[]).map(p=>(p.hand||[]).map(c=>({id:c.id, suit:c.suit, rank:c.rank})));
+      const chooserIndex = (S.chooserIndex|0);
+      const payload = { players, hands, chooserIndex, seed:'10', minRank:'7' };
+
+      ol.hidden = false;
+      ol.classList.add('show');
+      ol.setAttribute('aria-hidden','false');
+      try{ frame.contentWindow && frame.contentWindow.postMessage({type:'rentz:init', payload}, '*'); }catch(e){}
+    }catch(e){}
+  }
 
     function wireSelectorOnce(){
       if(window.__mpSelectorWired) return;
@@ -538,6 +554,11 @@
         const list = Array.isArray(chosenReal[realSeat]) ? chosenReal[realSeat] : [];
         st.chosenGames[localSeat] = new Set(list);
       }
+
+      // refresh selector UI so picked games show disabled/hatched immediately
+      try{
+        if(typeof window.populateSelector==='function') window.populateSelector();
+      }catch(e){}
     }catch(e){}
   }
 
@@ -743,13 +764,18 @@
       try{ const sel=document.getElementById('selector'); if(sel && (window.__state?.chooserIndex||0)!==0){ sel.classList.add('hidden'); sel.style.display='none'; } }catch(e){}
 
       // Apply locally without rebroadcast.
-      try{
-        if(gameName === 'Rentz'){
-          if(typeof window.__choose === 'function') window.__choose('Rentz');
-        } else {
-          if(typeof window.__choose === 'function') window.__choose(gameName);
-        }
-      }catch(e){}
+      try{ if(typeof window.__choose === 'function') window.__choose(gameName); }catch(e){}
+
+      // If Rentz overlay didn't open, force open (defensive)
+      if(gameName === 'Rentz'){
+        setTimeout(()=>{
+          try{
+            const ol = document.getElementById('rentzOverlay');
+            const shown = !!(ol && ol.classList.contains('show') && !ol.hidden);
+            if(!shown) forceOpenRentzOverlay();
+          }catch(e){}
+        }, 80);
+      }
       return;
     }
 

@@ -299,6 +299,7 @@ function roomPublic(r){
     chooserIndex: (r.chooserIndex ?? 0),
     currentGame: r.currentGame || null,
     chosenGames: r.chosenGames || Array.from({length:4}, ()=>[]),
+    totals: r.totals || [0,0,0,0],
     players: r.players.map(p=>({id:p.id,name:p.name,seat:p.seat,connected: !!p.ws && p.ws.readyState===1})),
   };
 }
@@ -365,7 +366,7 @@ wss.on('connection', (ws) => {
       name = name.slice(0,20);
       console.log('[create]', clientId, 'name=', name);
       const c = code();
-      room = { code:c, createdAt:Date.now(), players:[], started:false, seed:null, hands:null, chooserIndex:0, maxHumans: Math.max(1, Math.min(4, Number(msg.maxHumans||4))), chosenGames: Array.from({length:4}, ()=>[]), currentGame:null, rentz:null, playLog:[] };
+      room = { code:c, createdAt:Date.now(), players:[], started:false, seed:null, hands:null, chooserIndex:0, maxHumans: Math.max(1, Math.min(4, Number(msg.maxHumans||4))), chosenGames: Array.from({length:4}, ()=>[]), currentGame:null, rentz:null, playLog:[], totals:[0,0,0,0] };
       rooms.set(c, room);
       player = { id: clientId, name, ws, seat: 0 };
       room.players.push(player);
@@ -413,7 +414,7 @@ wss.on('connection', (ws) => {
       // Otherwise refresh/rejoin would land in a blank UI.
       try{
         if(r.started && r.hands){
-          sendTo(player, { type:'init_state', room: roomPublic(r), state: maskedStateFor(r, player) });
+          sendTo(player, { type:'init_state', room: roomPublic(r), state: maskedStateFor(r, player), totals: r.totals||[0,0,0,0] });
 
           // Re-open current subgame UI for the rejoining player.
           if(r.currentGame){
@@ -451,9 +452,12 @@ wss.on('connection', (ws) => {
       room.rentz = null;
       room.currentGame = null;
 
+      // reset totals at match start
+      room.totals = [0,0,0,0];
+
       // send init_state personalized (clients run full game locally)
       for(const p of room.players){
-        sendTo(p, { type:'init_state', room: roomPublic(room), state: maskedStateFor(room, p) });
+        sendTo(p, { type:'init_state', room: roomPublic(room), state: maskedStateFor(room, p), totals: room.totals });
       }
       broadcast(room, { type:'started' });
       return;
@@ -511,6 +515,16 @@ wss.on('connection', (ws) => {
       if(player.seat !== 0) return; // host only
       if(!room.started) return;
       const gameName = String(msg.gameName || room.currentGame || '');
+
+      // Update authoritative totals if host provided scores (REAL seat order).
+      try{
+        const scores = Array.isArray(msg.scores) ? msg.scores : null;
+        if(scores && scores.length===4){
+          room.totals = room.totals || [0,0,0,0];
+          for(let i=0;i<4;i++) room.totals[i] += Number(scores[i]||0);
+          broadcast(room, { type:'totals_update', totals: room.totals });
+        }
+      }catch(e){}
       const chooser = (room.chooserIndex ?? 0);
       if(!room.chosenGames) room.chosenGames = Array.from({length:4}, ()=>[]);
       if(gameName && !room.chosenGames[chooser].includes(gameName)){
@@ -610,6 +624,16 @@ wss.on('connection', (ws) => {
       }catch(e){}
 
       if(res.done){
+        // Update authoritative totals from Rentz scores (REAL seat order)
+        try{
+          const scores = (res.result && Array.isArray(res.result.scores)) ? res.result.scores : null;
+          if(scores && scores.length===4){
+            room.totals = room.totals || [0,0,0,0];
+            for(let i=0;i<4;i++) room.totals[i] += Number(scores[i]||0);
+            broadcast(room, { type:'totals_update', totals: room.totals });
+          }
+        }catch(e){}
+
         broadcast(room, { type:'rentz_done', result: res.result });
       }
       return;

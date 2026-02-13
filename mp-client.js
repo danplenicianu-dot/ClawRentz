@@ -596,7 +596,12 @@
       }catch(e){}
       // only HOST (real seat 0) asks server to start next round; others just wait
       if(you && you.realSeat===0){
-        try{ wsSend({type:'round_end', gameName: window.__state?.gameName || ''}); }catch(e){}
+        try{
+          const st = window.__state || {};
+          // send scores in REAL seat order (server authoritative totals)
+          const scores = [0,1,2,3].map(realSeat => Number(st.lastScores?.[toLocalSeat(realSeat)]||0));
+          wsSend({type:'round_end', gameName: st.gameName || '', scores});
+        }catch(e){}
         wsSend({type:'next_round'});
       }
     };
@@ -925,6 +930,16 @@
 
     if(msg.type==='room_update'){
       applyRoomPublic(msg.room);
+      // Update totals if provided
+      try{
+        const totalsReal = msg.room?.totals;
+        const st = window.__state;
+        if(st && totalsReal && totalsReal.length===4){
+          st.totals = st.totals || [0,0,0,0];
+          for(let realSeat=0; realSeat<4; realSeat++) st.totals[toLocalSeat(realSeat)] = Number(totalsReal[realSeat]||0);
+          if(typeof window.updateLeftScorePanel==='function') window.updateLeftScorePanel();
+        }
+      }catch(e){}
       try{ updateChooserInfo(); }catch(e){}
       showHostStartIfReady();
       return;
@@ -935,6 +950,20 @@
       enableMultiplayer();
       // Start match timer for MP clients (they don't use window.__start)
       try{ if(window.__state && !window.__state.matchStartedAt) window.__state.matchStartedAt = Date.now(); }catch(e){}
+
+      // Apply authoritative totals (REAL->LOCAL mapping)
+      try{
+        const totalsReal = msg.totals || msg.room?.totals || [0,0,0,0];
+        const st = window.__state;
+        if(st){
+          st.totals = st.totals || [0,0,0,0];
+          for(let realSeat=0; realSeat<4; realSeat++){
+            st.totals[toLocalSeat(realSeat)] = Number(totalsReal[realSeat]||0);
+          }
+          if(typeof window.updateLeftScorePanel==='function') window.updateLeftScorePanel();
+        }
+      }catch(e){}
+
       initRoundFromServer(msg);
       // sync chosen subgames from server (authoritative)
       try{ if(msg.state && msg.state.chosenGames) syncChosenFromServer(msg.state.chosenGames); }catch(e){}
@@ -979,6 +1008,20 @@
         t.style.display = 'block';
         clearTimeout(window.__mpToastTimer);
         window.__mpToastTimer = setTimeout(()=>{ try{ t.style.display='none'; }catch(e){} }, 2400);
+      }catch(e){}
+      return;
+    }
+
+    if(msg.type==='totals_update'){
+      // Server-authoritative totals (REAL seat order)
+      try{
+        const totalsReal = msg.totals || [0,0,0,0];
+        const st = window.__state;
+        if(st){
+          st.totals = st.totals || [0,0,0,0];
+          for(let realSeat=0; realSeat<4; realSeat++) st.totals[toLocalSeat(realSeat)] = Number(totalsReal[realSeat]||0);
+          if(typeof window.updateLeftScorePanel==='function') window.updateLeftScorePanel();
+        }
       }catch(e){}
       return;
     }

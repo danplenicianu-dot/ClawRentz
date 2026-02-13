@@ -292,6 +292,9 @@ function roomPublic(r){
     started: !!r.started,
     maxHumans: r.maxHumans || 4,
     connectedHumans: connected.length,
+    chooserIndex: (r.chooserIndex ?? 0),
+    currentGame: r.currentGame || null,
+    chosenGames: r.chosenGames || Array.from({length:4}, ()=>[]),
     players: r.players.map(p=>({id:p.id,name:p.name,seat:p.seat,connected: !!p.ws && p.ws.readyState===1})),
   };
 }

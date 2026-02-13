@@ -242,6 +242,45 @@
     return map[seat];
   }
 
+  function ensureChooserInfo(){
+    let b = document.getElementById('mpChooserInfo');
+    if(b) return b;
+    b = document.createElement('div');
+    b.id = 'mpChooserInfo';
+    b.style.cssText = 'position:fixed;top:10px;left:50%;transform:translateX(-50%);z-index:9998;padding:8px 10px;border-radius:12px;background:rgba(0,0,0,.70);color:#fff;font:12px system-ui;border:1px solid rgba(255,255,255,.12);max-width:min(720px,92vw);text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis';
+    b.textContent = '';
+    document.body.appendChild(b);
+    return b;
+  }
+
+  function remainingGamesForChooser(){
+    const ALL = ['Carouri','Dame','Popa Roșu','10 Trefla','Whist','Totale','Rentz'];
+    const ci = (room && Number.isFinite(room.chooserIndex)) ? room.chooserIndex : (window.__state?.chooserIndex||0);
+    const chosen = (room && room.chosenGames && room.chosenGames[ci]) ? room.chosenGames[ci] : [];
+    return ALL.filter(g => !(chosen||[]).includes(g));
+  }
+
+  function updateChooserInfo(){
+    try{
+      if(!room) return;
+      const ci = Number.isFinite(room.chooserIndex) ? room.chooserIndex : 0;
+      const chooser = (room.players||[]).find(p=>p.seat===ci);
+      const name = chooser?.name || `P${ci+1}`;
+      const opts = remainingGamesForChooser();
+      const el = ensureChooserInfo();
+      const isRentz = (room.currentGame==='Rentz');
+      if(isRentz){
+        el.textContent = `Subjoc: Rentz`;
+        return;
+      }
+      if(!room.started){
+        el.textContent = `Lobby — ${room.connectedHumans||0}/${room.maxHumans||4}`;
+        return;
+      }
+      el.textContent = `Rând la ales: ${name} • Opțiuni: ${opts.join(', ') || '—'}`;
+    }catch(e){}
+  }
+
   function ensureBadge(){
     let b = document.getElementById('mpBadge');
     if(b) return b;
@@ -782,6 +821,7 @@
 
     if(msg.type==='room_update'){
       applyRoomPublic(msg.room);
+      try{ updateChooserInfo(); }catch(e){}
       showHostStartIfReady();
       return;
     }
@@ -792,6 +832,7 @@
       initRoundFromServer(msg);
       // sync chosen subgames from server (authoritative)
       try{ if(msg.state && msg.state.chosenGames) syncChosenFromServer(msg.state.chosenGames); }catch(e){}
+      try{ updateChooserInfo(); }catch(e){}
       showHostStartIfReady();
       return;
     }
@@ -832,6 +873,7 @@
       const gameName = msg.gameName;
       // Sync chosenGames from server if present
       try{ if(msg.chosenGames) syncChosenFromServer(msg.chosenGames); }catch(e){}
+      try{ updateChooserInfo(); }catch(e){}
       // If server says it's not your turn, ensure selector stays closed
       try{ const sel=document.getElementById('selector'); if(sel && (window.__state?.chooserIndex||0)!==0){ sel.classList.add('hidden'); sel.style.display='none'; } }catch(e){}
 
@@ -860,6 +902,7 @@
 
     if(msg.type==='chosen_update'){
       try{ if(msg.chosenGames) syncChosenFromServer(msg.chosenGames); }catch(e){}
+      try{ updateChooserInfo(); }catch(e){}
       return;
     }
 

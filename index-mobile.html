@@ -896,6 +896,8 @@ window.updateLeftScorePanel = updateLeftScorePanel;
   }
 
   function patchRentzSkeleton(){
+    // In MP we use the real Rentz overlay (assets/rentz-overlay.js). Do not install the legacy "schelet" modal.
+    try{ if(document.getElementById('rentzOverlay')) return; }catch(e){}
     // Inject modal once
     try{
       if(document.getElementById('rentzModal')) return;
@@ -1610,7 +1612,7 @@ try{ if (typeof chooseGameForBot==='function') window.chooseGameForBot = chooseG
 <!-- === /CHAT PANEL === -->
 
 <script>window.MP_WS_URL='wss://clawrentz.onrender.com';</script>
-<script src="./mp-client.js?v=33"></script>
+<script src="./mp-client.js?v=34"></script>
   <script src="./mobile.js" defer></script>
 </body>
 </html>

@@ -80,8 +80,7 @@
       </style>
 
       <div class="iosCard">
-        <div class="iosTitle">Rentz Multiplayer</div>
-        <div class="iosSub">Fără cont • cod numeric • share rapid</div>
+        <div class="iosTitle" style="text-align:center">Rentz by Domnul Dan</div>
 
         <div class="iosSeg">
           <button id="mpTabCreate" class="active" type="button">Creează</button>

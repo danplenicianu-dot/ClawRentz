@@ -247,7 +247,7 @@
     if(b) return b;
     b = document.createElement('div');
     b.id = 'mpChooserInfo';
-    b.style.cssText = 'position:fixed;top:10px;left:50%;transform:translateX(-50%);z-index:9998;padding:8px 10px;border-radius:12px;background:rgba(0,0,0,.70);color:#fff;font:12px system-ui;border:1px solid rgba(255,255,255,.12);max-width:min(720px,92vw);text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis';
+    b.style.cssText = 'position:fixed;top:10px;left:50%;transform:translateX(-50%);z-index:9998;padding:8px 10px;border-radius:12px;background:rgba(0,0,0,.70);color:#fff;font:12px system-ui;border:1px solid rgba(255,255,255,.12);max-width:min(720px,92vw);text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.25';
     b.textContent = '';
     document.body.appendChild(b);
     return b;
@@ -268,6 +268,16 @@
       const name = chooser?.name || `P${ci+1}`;
       const opts = remainingGamesForChooser();
       const el = ensureChooserInfo();
+
+      // mobile responsive
+      const narrow = (window.innerWidth || 9999) <= 520;
+      el.style.maxWidth = narrow ? '92vw' : 'min(720px,92vw)';
+      el.style.fontSize = narrow ? '11px' : '12px';
+      el.style.whiteSpace = narrow ? 'normal' : 'nowrap';
+      el.style.overflow = 'hidden';
+      el.style.textOverflow = 'ellipsis';
+      el.style.padding = narrow ? '8px 10px' : '8px 10px';
+
       const isRentz = (room.currentGame==='Rentz');
       if(isRentz){
         el.textContent = `Subjoc: Rentz`;
@@ -958,7 +968,10 @@
     });
   }
 
+  window.addEventListener('resize', ()=>{ try{ updateChooserInfo(); }catch(e){} });
+
   window.addEventListener('DOMContentLoaded', () => {
     overlay();
+    try{ updateChooserInfo(); }catch(e){}
   });
 })();

@@ -96,16 +96,46 @@
     <div id="status" style="margin-top: 20px; color: #b0b0b5; font-size: 14px;"></div>
   </div>
 
-  <script>
-    // Basic JS for now, will connect to WS later
+  <script type="module">
+    // Client-side MP logic
+    import { mp } from './mp-client-newui.js';
+
     document.addEventListener('DOMContentLoaded', () => {
       const createBtn = document.getElementById('createRoom');
       const joinBtn = document.getElementById('joinRoom');
       const playerNameInput = document.getElementById('playerName');
       const statusDiv = document.getElementById('status');
 
-      createBtn.onclick = () => { statusDiv.textContent = `Creare cameră pentru ${playerNameInput.value}...`; };
-      joinBtn.onclick = () => { statusDiv.textContent = `Intrare cameră pentru ${playerNameInput.value}...`; };
+      // Restore last player name if any
+      const savedName = localStorage.getItem('playerName');
+      if(savedName) playerNameInput.value = savedName;
+
+      mp.setStatusHandler((text) => {
+        statusDiv.textContent = text;
+      });
+
+      createBtn.onclick = () => {
+        const playerName = playerNameInput.value.trim();
+        if (playerName) {
+          mp.createRoom(playerName);
+        } else {
+          statusDiv.textContent = 'Te rog, introdu un nume!';
+        }
+      };
+
+      joinBtn.onclick = () => {
+        const playerName = playerNameInput.value.trim();
+        if (!playerName) {
+          statusDiv.textContent = 'Te rog, introdu un nume!';
+          return;
+        }
+        const roomCode = prompt('Introdu codul camerei (ex: 123456):');
+        if (roomCode) {
+          mp.joinRoom(roomCode, playerName);
+        } else {
+          statusDiv.textContent = 'Codul camerei este necesar!';
+        }
+      };
     });
   </script>
 </body>

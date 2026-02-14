@@ -5,15 +5,81 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Rentz MP - New UI</title>
   <style>
-    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background-color: #0d0d0f; color: #eaeaec; margin: 0; padding: 0; display: flex; justify-content: center; align-items: center; min-height: 100vh; }
-    .container { background-color: #1a1a1c; border-radius: 12px; padding: 24px; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4); text-align: center; }
-    h1 { font-size: 24px; margin-bottom: 20px; color: #ffffff; }
-    .form-group { margin-bottom: 15px; }
-    label { display: block; margin-bottom: 8px; font-size: 14px; text-align: left; color: #b0b0b5; }
-    input[type="text"] { width: 100%; padding: 10px; border: 1px solid #333; border-radius: 8px; background-color: #2a2a2c; color: #ffffff; box-sizing: border-box; }
-    button { padding: 10px 20px; border: none; border-radius: 8px; background-color: #0a84ff; color: white; font-size: 16px; cursor: pointer; transition: background-color 0.2s; }
-    button:hover { background-color: #007bff; }
-    .button-group { display: flex; justify-content: space-around; margin-top: 20px; }
+    /* Basic Solitaire-like theme */
+    body {
+      font-family: 'Times New Roman', serif; /* Classic font */
+      background-color: #0c4d2c; /* Dark green felt */
+      color: #f0f0f0;
+      margin: 0;
+      padding: 0;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      background-image: radial-gradient(#1a6c42, #0c4d2c); /* Subtle radial gradient */
+    }
+    .container {
+      background-color: rgba(0, 0, 0, 0.4); /* Slightly transparent dark container */
+      border: 2px solid rgba(255, 255, 255, 0.2);
+      border-radius: 8px;
+      padding: 30px;
+      box-shadow: 0 8px 16px rgba(0, 0, 0, 0.6);
+      text-align: center;
+      max-width: 400px;
+      width: 90%;
+    }
+    h1 {
+      font-size: 32px;
+      margin-bottom: 25px;
+      color: #fff;
+      text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.7);
+    }
+    .form-group {
+      margin-bottom: 20px;
+    }
+    label {
+      display: block;
+      margin-bottom: 10px;
+      font-size: 16px;
+      text-align: center; /* Center label */
+      color: #c0c0c0;
+    }
+    input[type="text"] {
+      width: calc(100% - 22px); /* Adjust for padding and border */
+      padding: 10px;
+      border: 1px solid #666;
+      border-radius: 5px;
+      background-color: #333;
+      color: #fff;
+      box-sizing: border-box;
+      font-size: 16px;
+    }
+    button {
+      padding: 12px 25px;
+      border: 1px solid #a0a0a0; /* Subtle border for classic feel */
+      border-radius: 5px;
+      background-color: #555; /* Neutral button color */
+      color: white;
+      font-size: 18px;
+      cursor: pointer;
+      transition: background-color 0.2s, border-color 0.2s;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.4);
+      min-width: 150px; /* Ensure buttons are wide enough */
+    }
+    button:hover {
+      background-color: #666;
+      border-color: #ccc;
+    }
+    .button-group {
+      display: flex;
+      justify-content: space-around;
+      margin-top: 30px;
+    }
+    .status {
+      margin-top: 25px;
+      color: #e0e0e0;
+      font-size: 16px;
+    }
   </style>
 </head>
 <body>

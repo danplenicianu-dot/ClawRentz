@@ -23,6 +23,13 @@
   let origChoose = null;
   let origContinue = null;
   const pending = [];
+  // Persist last intent so refresh/reconnect can self-heal.
+  const LS_KEY = 'mp:lastIntent';
+  function saveIntent(obj){ try{ localStorage.setItem(LS_KEY, JSON.stringify(obj)); }catch(e){} }
+  function loadIntent(){ try{ return JSON.parse(localStorage.getItem(LS_KEY)||'null'); }catch(e){ return null; } }
+  function clearIntent(){ try{ localStorage.removeItem(LS_KEY); }catch(e){} }
+  let lastIntent = loadIntent();
+
 
   function log(...a){ console.log('[mp]', ...a); }
 
@@ -172,22 +179,12 @@
     // prefill room code from URL (?room=123456)
     try{
       const roomFromUrl = (new URLSearchParams(location.search)).get('room');
-      let lastRoom = (sessionStorage.getItem('mp.lastRoom')||'').trim();
+      const lastRoom = (sessionStorage.getItem('mp.lastRoom')||'').trim();
       const lastName = (sessionStorage.getItem('mp.name')||'').trim();
-
-      const isValidRoomCode = (c) => /^\d{6}$/.test(String(c||'').trim());
-      if(lastRoom && !isValidRoomCode(lastRoom)){
-        // Guard against stale/invalid room codes from older builds
-        try{ sessionStorage.removeItem('mp.lastRoom'); }catch(e){}
-        lastRoom = '';
-      }
 
       if(roomFromUrl){
         // Link direct cu room => UX simplificat: doar nume + buton Intră / Reintră
         const rc = String(roomFromUrl).trim();
-        if(!isValidRoomCode(rc)){
-          setStatus('Cod cameră invalid (trebuie 6 cifre).');
-        }
         $('#mpCode', el).value = rc;
         try{ setTab('join'); }catch(e){}
         try{ const seg = el.querySelector('.iosSeg'); if(seg) seg.style.display='none'; }catch(e){}
@@ -263,20 +260,21 @@
       while(pending.length){
         try{ ws.send(pending.shift()); }catch(e){ break; }
       }
+      // Auto-resume last room (best-effort)
+      try{
+        if(lastIntent && lastIntent.type && ws.readyState===1){
+          ws.send(JSON.stringify(lastIntent));
+        }
+      }catch(e){}
     };
     ws.onclose = () => {
       log('ws closed');
       try{ ws = null; }catch(e){}
-      // If we still have pending requests (create/join), retry a few times.
-      if(pending.length && __wsRetry < 6){
-        const wait = Math.min(6000, 600 * Math.pow(2, __wsRetry));
-        __wsRetry++;
-        if(window.__mpSetStatus) window.__mpSetStatus('Serverul MP pornește… reîncerc ('+__wsRetry+'/6)');
-        __wsRetryTimer = setTimeout(()=>{ try{ connect(); }catch(e){} }, wait);
-        return;
-      }
+      const wait = Math.min(10000, 600 * Math.pow(2, __wsRetry));
+      __wsRetry = Math.min(__wsRetry + 1, 8);
+      if(window.__mpSetStatus) window.__mpSetStatus('Conexiune pierdută. Reconectez… ('+__wsRetry+')');
       setConnBanner('Conexiune pierdută. Reconectez…');
-      if(window.__mpSetStatus) window.__mpSetStatus('Conexiune închisă. Reîncearcă.');
+      __wsRetryTimer = setTimeout(()=>{ try{ connect(); }catch(e){} }, wait);
     };
     ws.onerror = () => {
       setConnBanner('Conexiune instabilă. Reconectez…');
@@ -310,6 +308,11 @@
   }
 
   function wsSend(obj){
+    // Save last lobby intent so refresh/reconnect can auto-resume.
+    try{
+      if(obj && (obj.type==='create' || obj.type==='join')){ lastIntent = obj; saveIntent(obj); }
+      if(obj && obj.type==='leave'){ lastIntent = null; clearIntent(); }
+    }catch(e){}
     const s = JSON.stringify(obj);
     const realtime = (obj && (obj.type==='play_card' || obj.type==='bot_play' || obj.type==='rentz_intent'));
 
@@ -914,6 +917,14 @@
     if(msg.type==='joined'){
       // keep both real seat (server) and local seat (always 0)
       you = { ...msg.you, realSeat: msg.you.seat, seat: 0 };
+      try{
+        if(msg.room && msg.room.code){
+          const nm = (sessionStorage.getItem('mp.name')||you.name||'Player');
+          lastIntent = {type:'join', code: String(msg.room.code), name: String(nm)};
+          saveIntent(lastIntent);
+        }
+      }catch(e){}
+
       // Ensure legacy name-sync script doesn't overwrite local seat name
       // (localStorage is patched in enableMultiplayer; do not write shared localStorage here)
 

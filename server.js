@@ -32,6 +32,10 @@ const mime = {
 
 const server = http.createServer((req, res) => {
   const urlPath = decodeURIComponent((req.url || '/').split('?')[0]);
+  if(urlPath === '/health'){
+    res.writeHead(200, {'Content-Type':'application/json','Cache-Control':'no-store'});
+    return res.end(JSON.stringify({status:'ok'}));
+  }
   let filePath = urlPath === '/' ? '/index.html' : urlPath;
   filePath = path.normalize(filePath).replace(/^\.\.(\/|\\|$)/, '');
   const abs = path.join(ROOT, filePath);
@@ -348,8 +352,22 @@ function maskedStateFor(r, viewer){
 
 // --- WebSocket ---
 const wss = new WebSocketServer({ server });
+const HEARTBEAT_MS = 25000;
+setInterval(() => {
+  for (const ws of wss.clients) {
+    if (ws.isAlive === false) {
+      try { ws.terminate(); } catch (e) {}
+      continue;
+    }
+    ws.isAlive = false;
+    try { ws.ping(); } catch (e) {}
+  }
+}, HEARTBEAT_MS);
+
 
 wss.on('connection', (ws) => {
+  ws.isAlive = true;
+  ws.on('pong', () => { ws.isAlive = true; });
   const clientId = Math.random().toString(36).slice(2);
   let room = null;
   let player = null;
@@ -385,17 +403,6 @@ wss.on('connection', (ws) => {
       console.log('[join]', clientId, 'code=', c, 'name=', name);
       const r = rooms.get(c);
       if(!r) return ws.send(JSON.stringify({type:'error', message:'Camera nu există.'}));
-
-      // If a client reconnects quickly (network flap) the old ws may still look OPEN.
-      // Prevent duplicate players by reclaiming the seat by name and closing the old socket.
-      try{
-        const sameNameConnected = r.players.find(p=>p.name===name && p.ws && p.ws.readyState===1);
-        if(sameNameConnected && sameNameConnected.ws && sameNameConnected.ws !== ws){
-          try{ sameNameConnected.ws.close(4000, 'replaced'); }catch(e){}
-          try{ sameNameConnected.ws = null; }catch(e){}
-        }
-      }catch(e){}
-
       // Room capacity is 4 CONNECTED players. Allow re-joining into disconnected slots.
       const connected = r.players.filter(p=>p.ws && p.ws.readyState===1);
       if(connected.length >= 4){
@@ -454,8 +461,7 @@ wss.on('connection', (ws) => {
       if(player.seat !== 0) return; // host only
       const connectedNow = room.players.filter(p=>p.ws && p.ws.readyState===1);
       const need = room.maxHumans || 4;
-      // Allow >need connected sockets (can happen briefly during reconnect flaps).
-      if(connectedNow.length < need) return sendTo(player, {type:'error', message:`Trebuie ${need} jucători conectați în cameră.`});
+      if(connectedNow.length !== need) return sendTo(player, {type:'error', message:`Trebuie ${need} jucători conectați în cameră.`});
       if(room.started) return;
       room.started = true;
       room.seed = (Date.now() ^ Math.floor(Math.random()*1e9)) >>> 0;

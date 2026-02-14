@@ -59,11 +59,8 @@
       return d;
     }
 
+    // Removed cardAsset and cc0img rendering that caused issues
 
-      // fallback (should be rare)
-      d.innerHTML = '<div class="rank">'+c.rank+'</div><div class="suit">'+c.suit+'</div><div class="rank rev">'+c.rank+'</div>';
-      return d;
-    }
     function createCardBack(count){
       const d = document.createElement('div');
       d.className = 'card back';

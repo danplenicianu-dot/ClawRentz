@@ -377,6 +377,9 @@ wss.on('connection', (ws) => {
     try{ msg = JSON.parse(buf.toString('utf8')); }catch(e){ return; }
 
     if(msg.type === 'create'){
+      if(room && player && room.players.includes(player)){
+        return sendTo(player, { type:'joined', you:{id:player.id, seat:player.seat, name:player.name}, room: roomPublic(room) });
+      }
       let name = String(msg.name || 'Player');
       name = name.replace(/https?:\/\/\S+/gi,'').replace(/\s+/g,' ').trim();
       name = name.replace(/[^\p{L}\p{N} _.-]/gu,'').trim();
@@ -403,6 +406,19 @@ wss.on('connection', (ws) => {
       console.log('[join]', clientId, 'code=', c, 'name=', name);
       const r = rooms.get(c);
       if(!r) return ws.send(JSON.stringify({type:'error', message:'Camera nu există.'}));
+
+      const existingForSocket = r.players.find(p => p.ws === ws || p.id === clientId);
+      if(existingForSocket){
+        existingForSocket.id = clientId;
+        existingForSocket.name = name;
+        existingForSocket.ws = ws;
+        room = r;
+        player = existingForSocket;
+        sendTo(player, { type:'joined', you:{id:player.id, seat:player.seat, name:player.name}, room: roomPublic(r) });
+        broadcast(r, { type:'room_update', room: roomPublic(r) });
+        return;
+      }
+
       // Room capacity is 4 CONNECTED players. Allow re-joining into disconnected slots.
       const connected = r.players.filter(p=>p.ws && p.ws.readyState===1);
       if(connected.length >= 4){

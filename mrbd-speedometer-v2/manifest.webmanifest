@@ -1,0 +1,11 @@
+{
+  "name": "MRBD Speedometer V2",
+  "short_name": "Speed V2",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#000000",
+  "theme_color": "#000000",
+  "orientation": "portrait",
+  "icons": []
+}

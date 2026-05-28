@@ -1,7 +1,13 @@
 // new/mp-client-newui.js - Multiplayer client for the new UI
 // Will handle WebSocket connection, sending/receiving messages, and basic lobby state.
 
-const WS_URL = ((location.protocol==='https:'?'wss':'ws') + '://' + location.host).replace('https://rentz.domnuldan.com', 'wss://clawrentz.onrender.com');
+const WS_URL = (() => {
+    if (window.MP_WS_URL) return String(window.MP_WS_URL);
+    if (location.hostname === 'rentz.domnuldan.com' || location.hostname.endsWith('github.io')) {
+        return 'wss://clawrentz.onrender.com';
+    }
+    return (location.protocol === 'https:' ? 'wss' : 'ws') + '://' + location.host;
+})();
 
 let ws = null;
 let you = null; // {seat, name, id}

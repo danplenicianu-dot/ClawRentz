@@ -97,6 +97,20 @@ async function main() {
       assert.strictEqual(joined.you.seat, i);
     }
 
+    players[1].ws.send(JSON.stringify({ type: 'join', code, name: players[1].name }));
+    const duplicateJoin = await waitForMessage(players[1], 'joined', (message) => message.room.code === code);
+    assert.strictEqual(duplicateJoin.you.seat, 1);
+    const duplicateRoomUpdate = await waitForMessage(
+      players[0],
+      'room_update',
+      (message) => message.room.code === code && message.room.connectedHumans === 4,
+    );
+    assert.strictEqual(duplicateRoomUpdate.room.players.length, 4);
+    assert.deepStrictEqual(
+      duplicateRoomUpdate.room.players.map((player) => player.name),
+      ['Ana', 'Bogdan', 'Cristi', 'Dana'],
+    );
+
     await waitForMessage(players[0], 'room_update', (message) => message.room.connectedHumans === 4);
 
     players[0].ws.send(JSON.stringify({ type: 'start' }));

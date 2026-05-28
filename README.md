@@ -1,14 +1,14 @@
-# Rentz Multiplayer – Next.js
+# Rentz Multiplayer
 
-This is a Next.js/Tailwind skeleton for building the **Rentz** multiplayer card game for `domnuldan.com`.  It uses the Next.js App Router (`src/app`), Tailwind CSS, and TypeScript.
+This repository contains the **Rentz** multiplayer card game and the WebSocket server used by the public static UI.
 
 ## Features
 
-- **Lobby** page for creating a room or joining a game via code.
-- **Game Room** component with placeholder logic (ready for integration with realtime sync).
-- Tailwind CSS configured with a simple design that can be customized.
-- Placeholder Supabase client for realtime updates (replace with your own Supabase URL and anon key in `.env.local`).
-- TypeScript and ESLint enabled.
+- Static desktop/mobile game UI served from `index.html`.
+- WebSocket multiplayer rooms for 4 players.
+- Host-controlled game start and round progression.
+- Server health endpoint at `/health`.
+- Automated 4-player multiplayer smoke test.
 
 ## Running locally
 
@@ -18,30 +18,34 @@ This is a Next.js/Tailwind skeleton for building the **Rentz** multiplayer card 
 npm install
 ```
 
-2. Create a `.env.local` file and set your Supabase credentials (or remove the import if you implement a custom WebSocket server):
+2. Start the multiplayer server:
 
 ```
-NEXT_PUBLIC_SUPABASE_URL=your-supabase-url
-NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
+npm start
 ```
 
-3. Start the development server:
+Open [http://localhost:5177](http://localhost:5177) to see the app. You can open multiple browser tabs to simulate multiple players.
+
+## Tests
+
+Run the 4-player multiplayer flow:
 
 ```
-npm run dev
+npm run test:mp
 ```
 
-Open [http://localhost:3000](http://localhost:3000) to see the app.  You can open multiple browser tabs to simulate multiple players.
-
-## Customization
-
-- To add your own logo or images, place them in the `public` directory and reference them in your components.
-- Update the UI in `src/app/page.tsx`, `src/components/Lobby.tsx`, and `src/components/GameRoom.tsx` as needed.
-- Implement realtime game synchronization by either connecting to Supabase Realtime via the `supabaseClient.ts` or by integrating a custom WebSocket server.
+The test starts the server, connects 4 players, creates a room, starts a match, plays one full round, records scores, and starts the next round.
 
 ## Deployment
 
-This project can be deployed to Vercel for free.  Once the repository is pushed to GitHub, import it into Vercel and configure environment variables for Supabase (if using).  Point your domain (`domnuldan.com`) to the Vercel project via the Vercel dashboard.
+For Render or similar Node hosts, use:
+
+```
+npm install
+npm start
+```
+
+The public GitHub Pages URL should use the `github.io` address unless the custom domain has a valid HTTPS certificate.
 
 ## License
 

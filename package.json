@@ -5,8 +5,10 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "start": "next start",
-    "lint": "next lint"
+    "start": "node server.js",
+    "start:next": "next start",
+    "lint": "next lint",
+    "test:mp": "node tests/mp-four-player.test.js"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.38.0",

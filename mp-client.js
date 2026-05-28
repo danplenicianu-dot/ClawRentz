@@ -257,12 +257,14 @@
       __wsRetry = 0;
       setConnBanner('');
       log('ws open');
+      let flushedPending = false;
       while(pending.length){
+        flushedPending = true;
         try{ ws.send(pending.shift()); }catch(e){ break; }
       }
       // Auto-resume last room (best-effort)
       try{
-        if(lastIntent && lastIntent.type && ws.readyState===1){
+        if(!flushedPending && lastIntent && lastIntent.type && ws.readyState===1){
           ws.send(JSON.stringify(lastIntent));
         }
       }catch(e){}
